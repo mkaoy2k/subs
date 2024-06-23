@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='main.css') }}">
+
+    {% if title %}
+        <title>FamilyTrees - {{ title }}</title>
+    {% else %}
+        <title>FamilyTrees</title>
+    {% endif %}
+</head>
+<body>
+    <header class="site-header">
+        <nav class="navbar navbar-expand-md navbar-dark bg-steel fixed-top">
+          <div class="container">
+            <div class="collapse navbar-collapse" id="navbarToggle">
+              <div class="navbar-nav mr-auto">
+                <a class="nav-item nav-link" href="{{ url_for('home') }}">{{ menu[0] }}</a>
+                <a class="nav-item nav-link" href="{{ url_for('faq') }}">{{ menu[1] }}</a>
+                <a class="nav-item nav-link" href="{{ url_for('about') }}">{{ menu[2] }}</a>
+              </div>
+            </div>
+          </div>
+        </nav>
+      </header>
+  
+    <main role="main" class="container">
+        <div class="row">
+          <div class="col-md-8">
+            {% block content %}{% endblock %}
+          </div>
+          <div class="col-md-4">
+            <div class="content-section">
+              <h3>Settings</h3>
+              <p class='text-muted'>Set Languages
+                <ul class="list-group">
+                  {% for option in options %}
+                    <li class="list-group-item list-group-item-light">
+                    <a href="{{ url_for('set_l10n', lang=option, page=title) }}">{{ option }}</a></li>
+                  {% endfor %}
+                  </ul>
+              </p>
+            </div>
+          </div>
+        </div>
+      </main>
+  </body>
+</html>

@@ -1,0 +1,81 @@
+{% extends "layout.html" %} {% block content %}
+<h1 class="mb-3">{{ header }}</h1>
+
+<article class="media content-section">
+  <img
+    class="rounded-circle article-img"
+    src="{{ url_for('static', filename='mkao2019.jpeg') }}"
+  />
+  <div class="media-body">
+    <h3>
+      <a class="article-title" href="https://discuss.streamlit.io"
+        >Q: Extra-Streamlit CookieManager Not Loaded, Why?</a
+      >
+    </h3>
+    <p class="article-content">
+      When clicking to activate account upon the receipt of your verification
+      email, a FamilyTrees landing page is redirected, but sometimes an error
+      dialog-box shows up, saying: Your app is having trouble
+      loading the 'extra_streamlit_components.CookieManager.cookie_manager'
+      component. The screen shot looks like as folllows:
+      <img
+        src="{{ url_for('static', 
+            filename='ScreenShot_cookie_manager.png')}}"
+        width="500"
+        height="270"
+      />
+    </p>
+
+    <h3>
+      <a class="article-note" href="https://support.apple.com/en-us/HT201265"
+        >A: To fix this, simply empty/clear caches from your browser.</a
+    </h3>
+  </div>
+</article>
+
+<article class="media content-section">
+  <img
+    class="rounded-circle article-img"
+    src="{{ url_for('static', 
+            filename='ScreenShot_charge.png')}}"
+  />
+  <div class="media-body">
+    <h3>
+      <a class="article-title" href="https://www.buymeacoffee.com/jkbwvj5y4zl"
+        >{{ faq_charge_q }}</a
+      >
+    </h3>
+    <p class="article-content">{{ faq_charge}}</p>
+  </div>
+</article>
+<article class="media content-section">
+  <img
+    class="rounded-circle article-img"
+    src="{{ url_for('static', 
+      filename='ScreenShot_donate.png')}}"
+  />
+  <div class="media-body">
+    <h3>
+      <a class="article-title" href="https://www.buymeacoffee.com/jkbwvj5y4zl"
+        >{{ faq_donate_q }}</a
+      >
+    </h3>
+    <p class="article-content">{{ faq_donate}}</p>
+  </div>
+</article>
+<article class="media content-section">
+  <img
+    class="rounded-circle article-img"
+    src="{{ url_for('static', 
+      filename='ScreenShot_creator.png')}}"
+  />
+  <div class="media-body">
+    <h3>
+      <a class="article-title" href="https://github.com/mkaoy2k"
+        >{{ faq_creator_q }}</a
+      >
+    </h3>
+    <p class="article-content">{{ faq_creator}}</p>
+  </div>
+</article>
+{% endblock content %}
