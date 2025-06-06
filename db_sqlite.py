@@ -7,7 +7,7 @@ import sqlite3
 from dotenv import load_dotenv  # pip install python-dotenv
 import logging
 
-# Configure logging
+# Configure logger for this module
 log = logging.getLogger(__name__)
 import pandas as pd # pip install pandas
 
@@ -16,9 +16,6 @@ import pandas as pd # pip install pandas
 load_dotenv(".env")
 dbn = os.getenv("DB_NAME")
 user_tbl = os.getenv("TBL_NAME")
-g_logging = os.getenv("LOGGING")
-logging.basicConfig(level=getattr(logging, g_logging, logging.INFO),
-                    format='%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
 user_tbl_fields = ['key', 
               'fullname', 
               'email', 

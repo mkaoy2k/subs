@@ -3,16 +3,18 @@
     "HOME_HTML_T1" : "Joke of the Day",
     "HOME_HTML_T1_JOKES" : [
         "Yesterday at lunchtime, a male colleague went out without taking his phone.\n",
-        "His wife kept calling him, and the female colleague who was taking a nap was annoyed.\n",
-        "She took the phone and yelled: 'We are sleeping, are you annoying us?'\n",
-        "As a result, that male colleague has not come to work today."
+        "His wife kept calling him, and the female colleague who was taking a nap felt annoyed.\n",
+        "She then picked up the phone and yelled: 'We are sleeping, leave us alone, will you?'\n",
+        "As a result, that male colleague has not yet come to work since."
         ],
     "HOME_HTML_T2" : "Motto of the Day",
     "HOME_HTML_T2_MOTTO" : [
         "Women who are drunk will open their mouths.\n",
-        "Men who are drunk will open their wallets."
+        "Whereas drunk men will open their wallets."
         ],
     "HOME_HTML_T3" : "Python eBook",
+    "HOME_HTML_T3_USER" : "Good for kids who want to learn Python.",
+    "HOME_HTML_T3_DOWNLOAD" : "Download eBook",
     "ABOUT_HTML_H1" : "About FamilyTrees App",
     "ABOUT_ABS_H2" : "Introduction",
     "ABOUT_HTML_ABS" : [

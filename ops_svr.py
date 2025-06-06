@@ -30,15 +30,52 @@ import logging
 
 # 載入環境變數
 load_dotenv(".env")
-    
+
 # Configure logging
 log = logging.getLogger(__name__)
-log_level = os.getenv('LOGGING', 'INFO').upper()
-log.setLevel(getattr(logging, log_level, logging.INFO))
-handler = logging.StreamHandler()
+log_level = os.getenv('LOGGING', 'WARNING').upper()
+log.setLevel(getattr(logging, log_level, logging.WARNING))
+
+# Remove any existing handlers to avoid duplicates
+log.handlers = []
+
+# Configure console handler with the desired format
+console_handler = logging.StreamHandler()
+console_handler.setLevel(log_level)
 formatter = logging.Formatter('%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-log.addHandler(handler)
+console_handler.setFormatter(formatter)
+
+# Add the handler to our logger
+log.addHandler(console_handler)
+
+# Prevent propagation to root logger
+log.propagate = False
+
+# Configure Flask app
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', os.urandom(24))  # Required for session management
+
+# Configure Flask-Mail with SSL on port 465
+app.config.update(
+    # Basic settings
+    MAIL_SERVER=os.getenv('MAIL_SERVER', 'smtp.gmail.com'),
+    MAIL_PORT=465,
+    MAIL_USE_TLS=False,
+    MAIL_USE_SSL=True,
+    MAIL_USERNAME=os.getenv('MAIL_USERNAME'),
+    MAIL_PASSWORD=os.getenv('MAIL_PASSWORD'),
+    MAIL_DEFAULT_SENDER=os.getenv('MAIL_DEFAULT_SENDER', 'noreply@familytree.com'),
+    # Additional settings for better reliability
+    MAIL_DEBUG=0,  # Set to 1 for SMTP debug output
+    MAIL_SUPPRESS_SEND=False
+)
+
+# Initialize Flask-Mail
+mail = Mail(app)
+
+# Test email configuration
+log.info(f"Email server configured: {app.config['MAIL_SERVER']}:{app.config['MAIL_PORT']}")
+log.info(f"Using TLS: {app.config['MAIL_USE_TLS']}, Using SSL: {app.config['MAIL_USE_SSL']}")
 
 def init_globals():
     """
@@ -122,28 +159,13 @@ def init_globals():
     g_faq = g_PAGE[key]['faq']
     g_about = g_PAGE[key]['about']
     
-    return (g_logging, backend, ft_svr, g_dirtyUser, g_L10N, g_L10N_options,
+    return (backend, ft_svr, g_L10N, g_L10N_options,
             g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, g_home, g_faq, g_about)
 
 # 初始化全局變數
-(g_logging, backend, ft_svr, g_dirtyUser, g_L10N, g_L10N_options,
- g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, g_home, g_faq, g_about) = init_globals()
-
-
-# Initialize Flask-Mail
-app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', 'dev-key-for-testing')
-app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
-app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
-app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'true').lower() in ['true', '1', 't']
-app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
-app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
-
-mail = Mail(app)
-
-# 初始化 Flask 應用程式
-app = Flask(__name__)
+(backend, ft_svr, g_L10N, g_L10N_options,
+ g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, 
+ g_home, g_faq, g_about) = init_globals()
 
 @app.route("/")
 def home():
@@ -164,41 +186,29 @@ def home():
         t2=g_loc['HOME_HTML_T2'],
         t2_motto=g_home['t2_motto'],
         t3=g_loc['HOME_HTML_T3'],
+        t3_user=g_loc['HOME_HTML_T3_USER'],
+        t3_download=g_loc['HOME_HTML_T3_DOWNLOAD'],
         title='home')
-
-@app.route("/activate")
-def activate():
-    """
-    用戶訂閱接口
-    
-    從 URL 參數獲取用戶名、郵箱和消息，然後調用 ops_activate.py 進行訂閱。
-    
-    Returns:
-        Response: 成功時顯示成功信息，失敗時顯示錯誤信息
-    """
-    email = request.args.get('email')
-    msg = request.args.get('msg')
-    
-    # 啟動子進程執行激活腳本
-    try:
-        s1 = subprocess.check_output(['python', 'ops_activate.py', email, msg])
-        log.debug(f"ops_activate.py output: {s1}")
-        if s1 == b'Done\n':
-            return f"{g_loc['DONE']}: {email} {msg}"
-        else:
-            # 轉換為普通字符串
-            rtn = s1.decode('ASCII')
-            return f"{g_loc['FAILED']}: {email} {msg}\n{rtn}"
-    except subprocess.CalledProcessError as e:
-        return f"{g_loc['FAILED']}: {email} {msg}\n{str(e)}"
 
 @app.route("/faq")
 def faq():
     """
     常見問題 (FAQ) 頁面路由
     
+    此路由負責渲染並返回常見問題頁面，顯示系統的使用說明和常見問題解答。
+    頁面內容支援多語言，根據用戶的語言設定自動切換。
+    
     Returns:
-        str: 渲染後的 FAQ 頁面 HTML
+        str: 渲染後的 FAQ 頁面 HTML 內容
+        
+    全局變數:
+        g_loc (dict): 當前語系的本地化字串
+        g_L10N_options (list): 可用的語言選項
+        g_menu (dict): 導航菜單項目
+        g_faq (dict): 常見問題內容
+        
+    模板文件:
+        faq.html: 用於渲染 FAQ 頁面的模板
     """
     global g_loc, g_L10N_options, g_menu, g_faq
     
@@ -333,15 +343,16 @@ def subscribe():
             # Generate verification token
             token = generate_verification_token()
             # Send verification email
-            if send_verification_email(mail, email, token, is_subscribe=True):
+            if send_verification_email(mail, email, token, is_subscribe=True, max_retries=3):
                 flash('Please check your email to confirm your subscription.', 'info')
+                add_subscriber(email, token)
             else:
                 flash('Failed to send verification email. Please try again later.', 'danger')
         else:
             # For unsubscribe, we can either send a verification email or directly unsubscribe
             # Here we'll send a verification email for security
             token = generate_verification_token()
-            if send_verification_email(mail, email, token, is_subscribe=False):
+            if send_verification_email(mail, email, token, is_subscribe=False, max_retries=3):
                 flash('Please check your email to confirm unsubscription.', 'info')
             else:
                 flash('Failed to send verification email. Please try again later.', 'danger')
