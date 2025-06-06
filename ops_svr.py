@@ -16,20 +16,29 @@ python ops_svr.py
 flask --app ops_svr run -p 8501
 """
 
-from flask import Flask, request, redirect, render_template
+from flask import Flask, request, redirect, render_template, flash, url_for, session
+from flask_mail import Mail
+import secrets
 import os
+from dotenv import load_dotenv
+from db_utils import add_subscriber, remove_subscriber, verify_token as db_verify_token
+from email_utils import validate_email, generate_verification_token, send_verification_email, Config
+from funcUtils import *
 import subprocess
 from dotenv import load_dotenv  # pip install python-dotenv
 import logging
 
+# 載入環境變數
+load_dotenv(".env")
+    
 # Configure logging
 log = logging.getLogger(__name__)
-log.setLevel(logging.INFO)
+log_level = os.getenv('LOGGING', 'INFO').upper()
+log.setLevel(getattr(logging, log_level, logging.INFO))
 handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 log.addHandler(handler)
-from funcUtils import *
 
 def init_globals():
     """
@@ -44,13 +53,6 @@ def init_globals():
     Returns:
         tuple: 包含所有全局變數的元組
     """
-    # 載入環境變數
-    load_dotenv(".env")
-    
-    # 設定日誌級別
-    g_logging = os.getenv("LOGGING")
-    log.setLevel(getattr(logging, g_logging.upper(), logging.INFO))   
-    
     # 載入資料庫後端設定
     backend = os.getenv("DB_SVR")
     log.debug(f"DB_SVR import: {backend}")
@@ -60,8 +62,8 @@ def init_globals():
     log.debug(f"FamilyTrees Server: {ft_svr}")    
     
     # 載入多語言支援
-    g_dirtyUser = os.getenv("DIRTY_USER")    
-    g_L10N = load_L10N(base=g_dirtyUser)
+    l10n_file = os.getenv("L10N_FILE")    
+    g_L10N = load_L10N(l10n_file)
     g_L10N_options = list(g_L10N.keys())
     
     # 初始化系統語言設定
@@ -126,6 +128,19 @@ def init_globals():
 # 初始化全局變數
 (g_logging, backend, ft_svr, g_dirtyUser, g_L10N, g_L10N_options,
  g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, g_home, g_faq, g_about) = init_globals()
+
+
+# Initialize Flask-Mail
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'dev-key-for-testing')
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS', 'true').lower() in ['true', '1', 't']
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.getenv('MAIL_DEFAULT_SENDER')
+
+mail = Mail(app)
 
 # 初始化 Flask 應用程式
 app = Flask(__name__)
@@ -253,7 +268,7 @@ def set_l10n():
         Response: 重新導向到當前頁面的新語言版本
     """
     global g_loc_key, g_loc, g_L10N_options
-    global g_MENU, g_menu, g_PAGE, g_faq, g_about
+    global g_MENU, g_menu, g_PAGE, g_faq, g_about, g_home
     
     # 從 URL 參數獲取語言和頁面
     g_loc_key = request.args.get('lang')
@@ -272,6 +287,7 @@ def set_l10n():
         key = g_L10N_options.index(g_loc_key)
         g_faq = g_PAGE[key]['faq']
         g_about = g_PAGE[key]['about']
+        g_home = g_PAGE[key]['home']
         
         # 返回相應頁面
         if page == "about":
@@ -295,6 +311,75 @@ def main():
     """
     log.info("啟動 FamilyTree 操作伺服器...")
     app.run(debug=True, port=8501)
+
+
+@app.route('/subscribe', methods=['POST'])
+def subscribe():
+    """
+    處理郵件訂閱/退訂請求
+    
+    Returns:
+        Response: 重定向回上一頁並顯示操作結果
+    """
+    email = request.form.get('email')
+    action = request.form.get('action')
+    
+    if not validate_email(email):
+        flash('Please enter a valid email address', 'danger')
+        return redirect(request.referrer or url_for('home'))
+    
+    try:
+        if action == 'subscribe':
+            # Generate verification token
+            token = generate_verification_token()
+            # Send verification email
+            if send_verification_email(mail, email, token, is_subscribe=True):
+                flash('Please check your email to confirm your subscription.', 'info')
+            else:
+                flash('Failed to send verification email. Please try again later.', 'danger')
+        else:
+            # For unsubscribe, we can either send a verification email or directly unsubscribe
+            # Here we'll send a verification email for security
+            token = generate_verification_token()
+            if send_verification_email(mail, email, token, is_subscribe=False):
+                flash('Please check your email to confirm unsubscription.', 'info')
+            else:
+                flash('Failed to send verification email. Please try again later.', 'danger')
+                
+    except Exception as e:
+        log.error(f"Error processing subscription: {str(e)}")
+        flash('An error occurred. Please try again later.', 'danger')
+    
+    return redirect(request.referrer or url_for('home'))
+
+
+@app.route('/verify-email')
+def verify_email():
+    """
+    Verify email subscription/unsubscription
+    """
+    email = request.args.get('email')
+    token = request.args.get('token')
+    action = request.args.get('action')
+    
+    if not all([email, token, action]):
+        flash('Invalid verification link', 'danger')
+        return redirect(url_for('home'))
+    
+    # Verify the token
+    if not db_verify_token(email, token):
+        flash('Invalid or expired verification link', 'danger')
+        return redirect(url_for('home'))
+    
+    # Process subscription/unsubscription
+    if action == 'subscribe':
+        add_subscriber(email, token)
+        flash('You have been successfully subscribed to our newsletter!', 'success')
+    else:
+        remove_subscriber(email)
+        flash('You have been unsubscribed from our newsletter.', 'info')
+    
+    return redirect(url_for('home'))
 
 
 if __name__ == "__main__":
