@@ -29,6 +29,7 @@ wip.py
 /data/*.csv
 /data/*.gv
 /data/*.png
+/data/*.db
 
 # Streamlit Examples
 main.py
