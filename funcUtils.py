@@ -2,7 +2,6 @@
 import os
 from dotenv import load_dotenv  # pip install python-dotenv
 import json
-import streamlit as st  # pip install streamlit
 
 # Import email packages
 import email
@@ -31,7 +30,6 @@ def load_menu(fn):
     return js
 
 # --- Load supported L10N dictionaries ---
-@st.cache_data(ttl=300)
 def load_L10N(base=None):
     # Build and return a dictionary for all supported languages, 
     # with key of language name and associated L10N dictionaries.
@@ -77,7 +75,7 @@ def send_email(someone, subject=None,
     load_dotenv(".env")
     
     # Load the environment variable for logging
-    email_password = os.getenv("EMAIL_PW")
+    email_password = os.getenv("EMAIL_PASSWORD")
     email_sender = os.getenv("EMAIL_SENDER")
     em = MIMEMultipart("alternative")
     em['From'] = email_sender

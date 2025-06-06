@@ -1,5 +1,19 @@
 {
-    "ABOUT_HTML_H1" : "關於 FamilyTrees 網路服務",
+    "HOME_HTML_H1" : "大蟒蛇日誌",
+    "HOME_HTML_T1" : "今天笑了沒？",
+    "HOME_HTML_T1_JOKES" : [
+    "昨天中午，有個男同事外出，沒把手機帶走。\n",
+    "他老婆不停地打電話來，午睡的女同事被吵煩了，\n",
+    "拿過手機大吼：「我們在睡覺，你煩不煩！」\n",
+    "結果，那位男同事今天到現在都沒來上班！"
+    ],
+    "HOME_HTML_T2" : "今日格言",
+    "HOME_HTML_T2_MOTTO" : [
+    "三分醉的女人，會打開話匣子。\n",
+    "七分醉的男人，會打開皮夾子。"
+    ],
+    "HOME_HTML_T3" : "Python 程式語言入門電子書",
+    "ABOUT_HTML_H1" : "關於 FamilyTrees App",
     "ABOUT_ABS_H2" : "簡介",
     "ABOUT_HTML_ABS" : [
     "FamilyTrees 提供一項服務，可協助記錄您世世代代的族譜。",
@@ -77,22 +91,26 @@
     ""
     ],
     "FAQ_HTML_H1" : "常見問题",
+    "FAQ_DOWNLOAD_Q" : "如何下載我的家譜？",
+    "FAQ_DOWNLOAD" : [
+    "點擊 '下載' 按鈕，",
+    "資料將會下載在下載目錄，檔名為您自訂的名稱（不需加 .csv）",
+    ""
+    ],
     "FAQ_CHARGE_Q" : "如何收費？",
     "FAQ_CHARGE" : [
-    "完全免費使用，若您支持此舉公益，甚值得推廣，",
+    "完全免費使用，若您支持此舉值得推廣，",
     "歡迎大家告訴大家，也歡迎贊助。",
     ""
     ],
-    "FAQ_DONATE_Q" : "如何贊助支持公益？",
+    "FAQ_DONATE_Q" : "如何贊助？",
     "FAQ_DONATE" : [
-    "贊助方式可以[請我一杯咖啡]，",
-    "或者也歡迎志願者加入翻譯更多的語言。",
+    "贊助我一杯咖啡",
     ""
     ],
     "FAQ_CREATOR_Q" : "原創者是誰？",
     "FAQ_CREATOR" : [
-    "用 ❤️ 發想原創者：[高嘉祥]，",
-    "古德云：紹繼族姓家繁延，莫作最後斷種人。",
+    "用 ❤️ 發想原創者：高嘉祥",
     ""
     ],
     "ABOUT_MARKDOWN" : [
@@ -131,10 +149,10 @@
     "   :white_check_mark: 完全免費使用，若您支持此舉公益，甚值得推廣，",
     "   歡迎大家告訴大家，也歡迎贊助。",
     "3. _如何贊助支持公益_:grey_question: \n",
-    "   :white_check_mark: 贊助方式可以[請我一杯咖啡](https://www.buymeacoffee.com/jkbwvj5y4zl):coffee: 謝謝您 :green_heart:  ",
+    "   :white_check_mark: [贊助我一杯咖啡](https://www.buymeacoffee.com/jkbwvj5y4zl):coffee: 謝謝您 :green_heart:  ",
     "4. _原創者是誰_:grey_question: \n",
     "   :white_check_mark: *用  ❤️ 發想原創者：* ",
-    "   [高嘉祥](https://github.com/mkaoy2k) ",
+    "   <a href='mailto:mkaoy2k@gmail.com'>高嘉祥</a> ",
     ":sunglasses: **紹繼族姓家繁延，莫作最後斷種人。** :sunglasses:"
     ],
     "MAIN_TITLE" : "FamilyTrees 族譜入口網 :family:  ",

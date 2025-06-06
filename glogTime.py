@@ -9,8 +9,16 @@ def xyz():
 When xyz() function is executed, the decorator'func_timer_decorator' 
 will be executed prior to invoking xyz()
 """
-import glog as log  # pip install glog
 import time
+import logging
+
+# Configure logging
+log = logging.getLogger(__name__)
+log.setLevel(logging.DEBUG)
+handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+log.addHandler(handler)
 
 class inAndOutLog():
     def __init__(self, funcName):
@@ -23,8 +31,7 @@ class inAndOutLog():
 
     def __exit__(self, type, value, tb):
         elapse = time.time() - self.init_time
-        log.debug(
-            f'Exit : {self.funcName} took {elapse:.2f} seconds.')
+        log.debug(f'Exit : {self.funcName} took {elapse:.2f} seconds.')
 
 
 def func_timer_decorator(func):

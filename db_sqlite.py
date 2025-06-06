@@ -5,7 +5,10 @@ import os, re
 import datetime
 import sqlite3
 from dotenv import load_dotenv  # pip install python-dotenv
-import glog as log  # pip install glog
+import logging
+
+# Configure logging
+log = logging.getLogger(__name__)
 import pandas as pd # pip install pandas
 
 # module global variables
@@ -14,7 +17,8 @@ load_dotenv(".env")
 dbn = os.getenv("DB_NAME")
 user_tbl = os.getenv("TBL_NAME")
 g_logging = os.getenv("LOGGING")
-log.setLevel(g_logging)    
+logging.basicConfig(level=getattr(logging, g_logging, logging.INFO),
+                    format='%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
 user_tbl_fields = ['key', 
               'fullname', 
               'email', 
@@ -33,10 +37,8 @@ def connect_db():
     # create a table via SQL
     cmd = f"CREATE TABLE IF NOT EXISTS {user_tbl}"
     args = """ (
-            key text,  
-            fullname text,  
             email text,                          
-            password text,     
+            subscription text,     
             date_joined text,  
             l10n text)
             """
@@ -74,16 +76,12 @@ def validate_email(email):
         return True
     return False
 
-def insert_user(username, fullname, email, password, l10n):
+def insert_user(email, subscription, l10n):
     """
     Return the user on a successful user creation, 
     otherwise raises an error.
     """
     
-    # validate username, must not be sjorter than 4
-    if not validate_username(username, 4):
-        raise(KeyError)
-
     # validate email
     if not validate_email(email):
            raise(NameError)
@@ -91,10 +89,8 @@ def insert_user(username, fullname, email, password, l10n):
         date_joined = str(datetime.datetime.now())
         cmd = f"INSERT INTO {user_tbl} VALUES"
         args = ''.join([
-                    '("',username, 
-                    '","', fullname,
-                    '","', email,
-                    '","', password,
+                    '("',email, 
+                    '","', subscription,
                     '","', date_joined,
                     '","', l10n,
                     '")'])
@@ -135,38 +131,17 @@ def fetch_users():
         except Exception as err:
             log.error(f"Caught '{err}'. class is {type(err)}")
 
-def get_usernames(base=None):
+def get_subscriptions(base=None):
     """
-    Fetch usernames
-    Return List of user usernames
+    Fetch all user subscriptions
+    Return List of user subscriptions:
     """
-
-    usernames = []
+    subscriptions = []
     for user in fetch_users():
-        usernames.append(user['key'])
-    return usernames
+        subscriptions.append(user['subscription'])
+    return subscriptions
 
-def get_fullnames(base=None):
-    """
-    Fetch all user full names
-    Return List of user emails:
-    """
-    fullnames = []
-    for user in fetch_users():
-        fullnames.append(user['fullname'])
-    return fullnames
-
-def get_passwords(base=None):
-    """
-    Fetch all user emails
-    Return List of user emails:
-    """
-    passwords = []
-    for user in fetch_users():
-        passwords.append(user['password'])
-    return passwords
-
-def get_emails(base=None):
+def get_emails(base=None):      
     """
     Fetch all user emails
     Return List of user emails:
@@ -176,24 +151,15 @@ def get_emails(base=None):
         emails.append(user['email'])
     return emails
 
-def get_username(email, base=None):
+def get_user(email, base=None):
     """
-    Return username given by email
-    """
-    for user in fetch_users():
-        if user['email'] == email:
-            return user['key']
-    return None
-
-def get_user(username, base=None):
-    """
-    Fetch an user, given by 'username' 
+    Fetch an user, given by 'email' 
     and return a dict obj.
     If not found, the function will return None
     """
     with connect_db() as conn:
         cmd = f"SELECT * FROM {user_tbl}"
-        args = f"WHERE key='{username}'"
+        args = f"WHERE email='{email}'"
         sql_stmt = f"{cmd} {args}"
         try:
             c = conn.cursor()
@@ -210,7 +176,7 @@ def get_user(username, base=None):
             log.error(f"Caught '{err}'. class is {type(err)}")
             return None
 
-def update_user(username, updates):
+def update_user(email, updates):
     """
     If the item is updated, return None. 
     Otherwise, an exception is raised.
@@ -237,7 +203,7 @@ def update_user(username, updates):
                     args += f"l10n='{v}',"
                     continue
             args = args.strip(',')
-            where = f"WHERE key='{username}'"
+            where = f"WHERE email='{email}'"
             sql_stmt = f"{cmd} {args} {where}"
             try:
                 c = conn.cursor()
@@ -249,13 +215,13 @@ def update_user(username, updates):
     else:
         return # do nothing
 
-def delete_user(username):
+def delete_user(email):
     """
     Always return None, even if the key does not exist.
     """
     with connect_db() as conn:
         cmd = f"DELETE FROM {user_tbl}" 
-        where = f"WHERE key='{username}'"
+        where = f"WHERE email='{email}'"
         sql_stmt = f"{cmd} {where}"
         try:
             c = conn.cursor()

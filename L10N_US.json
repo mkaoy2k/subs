@@ -1,8 +1,22 @@
 {
-    "ABOUT_HTML_H1" : "About FamilyTrees Service",
+    "HOME_HTML_H1" : "Python Blog",
+    "HOME_HTML_T1" : "Joke of the Day",
+    "HOME_HTML_T1_JOKES" : [
+        "Yesterday at lunchtime, a male colleague went out without taking his phone.\n",
+        "His wife kept calling him, and the female colleague who was taking a nap was annoyed.\n",
+        "She took the phone and yelled: 'We are sleeping, are you annoying us?'\n",
+        "As a result, that male colleague has not come to work today."
+        ],
+    "HOME_HTML_T2" : "Motto of the Day",
+    "HOME_HTML_T2_MOTTO" : [
+        "Women who are drunk will open their mouths.\n",
+        "Men who are drunk will open their wallets."
+        ],
+    "HOME_HTML_T3" : "Python eBook",
+    "ABOUT_HTML_H1" : "About FamilyTrees App",
     "ABOUT_ABS_H2" : "Introduction",
     "ABOUT_HTML_ABS" : [
-    "The FamilyTrees Web App is a web application that allows ",
+    "The FamilyTrees App is a web application that allows ",
     "you to manage your family tree as part of your family heritage, ",
     "passing along to generations to come. You can add, update and ",
     "query about your family tree, especially ",
@@ -92,25 +106,27 @@
     ""
     ],
     "FAQ_HTML_H1" : "Frequently Asked Questions",
-    "FAQ_CHARGE_Q" : "How Much to Charge for using FamilyTrees?",
+    "FAQ_DOWNLOAD_Q" : "How to download my family tree?",
+    "FAQ_DOWNLOAD" : [
+    "Click the 'Download' button, ",
+    "the data will be downloaded as a CSV file with the name of your choice ",
+    "(without .csv extension) in the Downloads directory.",
+    ""
+    ],
+    "FAQ_CHARGE_Q" : "Any Cost using FamilyTrees?",
     "FAQ_CHARGE" : [
     "Using FamilyTrees is 100% FREE.",
-    "Feel free to share this service to your friends and families.",
-    "And it would be very much appreciated for your generosity.",
+    "Feel free to share this app to your friends and families. ",
     ""
     ],
     "FAQ_DONATE_Q" : "How to Donate?",
     "FAQ_DONATE" : [
-    "To support us, financially, you can ",
-    "'Buy me Coffee' would be very much appreciated.",
-    "Or physically participating our localization endeavor is also",
-    "welcome.",
+    "To support, buying me a cup of coffee would be very much appreciated. ",
     ""
     ],
     "FAQ_CREATOR_Q" : "Who Created FamilyTrees?",
     "FAQ_CREATOR" : [
-    "Created with ❤️ by Michael Kao ",
-    "After all, we're all from some Family.",
+    "Created with ❤️ by Michael Kao.",
     ""
     ],
     "ABOUT_MARKDOWN" : [
@@ -162,11 +178,11 @@
     "   appreciated for your generosity.",
     "3. _How to donate_:grey_question: \n",
     "   :white_check_mark: To support us, ",
-    "   [Buy me a Coffee](https://www.buymeacoffee.com/jkbwvj5y4zl)",
-    "   :coffee: would be very much appreciated :green_heart:",
+    "   <a href='https://www.buymeacoffee.com/jkbwvj5y4zl'>Buy me a Coffee</a>",
+    "   would be very much appreciated.",
     "4. _Who created FamilyTrees_:grey_question: \n",
-    "   :white_check_mark: *Created with ❤️ by * ",
-    "   [Michael Kao](https://github.com/mkaoy2k) ",
+    "   :white_check_mark:  *Created with ❤️ by * ",
+    "   <a href='mailto:mkaoy2k@gmail.com'>Michael Kao</a> ",
     ":sunglasses: **After all, we're all from some Family.** :sunglasses:"
     ],
     "MAIN_TITLE" : "FamilyTrees Landing Page :family:  ",
