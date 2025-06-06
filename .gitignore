@@ -9,12 +9,17 @@
 ._*
 .DS_Store
 
-# Conda environemtn
+# Conda/uv environment
+.env
+.venv
+uv.lock
+pyproject.toml
 
 # FamilyTrees Obsolete files
 config.yaml
 L10N*.py
 family_*.py
+prod_*.sh
 
 # FamilyTrees support files
 wip.py
