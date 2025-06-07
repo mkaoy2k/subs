@@ -1,5 +1,5 @@
 """
-資料庫查詢介面 (Database Query Interface)
+資料庫更新介面 (Database Update Interface)
 
 此模組提供一個基於 Streamlit 的網頁介面，
 用於查詢和管理訂閱者資料庫。
@@ -18,7 +18,7 @@
 注意事項:
 1. 需先設定好環境變數 (.env 檔案)
 2. 需要安裝相關套件: streamlit, pandas
-3. 執行方式: streamlit run ops_db_query.py
+3. 執行方式: streamlit run ops_db_update.py
 """
 
 import streamlit as st
@@ -26,7 +26,7 @@ import pandas as pd  # pip install pandas
 import db_utils as dbm
 from email_utils import validate_email
 
-st.title("Query User Database")
+st.title("Update User Database")
 st.markdown(
     """
     ##### *Created with ❤️ by* [Michael Kao](https://github.com/mkaoy2k):sunglasses:
@@ -34,7 +34,7 @@ st.markdown(
     )
 
 df = pd.DataFrame()
-btn1, btn2, btn3 = st.columns([5,5,3])
+btn1, btn2 = st.columns([5,5])
 
 try:
     with btn1:
@@ -50,7 +50,7 @@ try:
                 st.dataframe(df)  # Use st.dataframe instead of st.write for DataFrames
             else:
                 st.info("No active subscribers found")    
-    with btn3:
+    with btn2:
         if st.button("Inactive Subscribers"):
             users = dbm.get_subscribers(state='inactive')
             if users:
@@ -61,18 +61,7 @@ try:
                 st.dataframe(df)
             else:
                 st.info("No inactive subscribers found")
-    with btn2:
-        if st.button("All Subscribers"):
-            users = dbm.get_subscribers(state='all')
-            if users:
-                df = pd.DataFrame(users, columns=users[0].keys())
-                for col in ['created_at', 'updated_at']:
-                    if col in df.columns:
-                        df[col] = df[col].astype(str)
-                st.dataframe(df)
-            else:
-                st.info("No subscribers found")
-                
+    
     # --- query a specific user --- from here
     st.markdown(
     """
@@ -80,30 +69,24 @@ try:
     """
     )
     email = st.text_input(':blue[Email:]', 
-                    placeholder='Enter email to Query')
+                    placeholder='Enter email to subscribe')
     email = email.strip()
-    if st.button("User Query"):
-        if not validate_email(email):
-            st.warning("Please enter a valid email address")
-        else:
-            user = dbm.get_user(email)
-            if user is not None:
-                # Create a vertical display of user data
-                st.write("### User Details")
-                # Create two columns for better layout
-                col1, col2 = st.columns(2)
-                
-                # Display user data in a vertical format
-                for i, (key, value) in enumerate(user.items()):
-                    # Convert timestamp to string if needed
-                    if key in ['created_at', 'updated_at'] and value is not None:
-                        value = str(value)
-                    # Alternate between columns for better space usage
-                    if i % 2 == 0:
-                        col1.write(f"**{key.replace('_', ' ').title()}:** {value}")
-                    else:
-                        col2.write(f"**{key.replace('_', ' ').title()}:** {value}")
-            else:            
-                st.warning(f"Email '{email}' not found")
+    btn3, btn4 = st.columns([5,5])
+    
+    with btn3:
+        if st.button("Subscribe"):
+            if not validate_email(email):
+                st.warning("Please enter a valid email address")
+            else:
+                dbm.add_subscriber(email, "token")  
+                st.info("Subscribed successfully")
+    
+    with btn4:
+        if st.button("Unsubscribe"):
+            if not validate_email(email):
+                st.warning("Please enter a valid email address")
+            else:
+                dbm.remove_subscriber(email)  
+                st.info("Unsubscribed successfully")
 except Exception as err:
     st.error(f"Caught '{err}'. class is {type(err)}")

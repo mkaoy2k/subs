@@ -16,12 +16,13 @@ python ops_svr.py
 flask --app ops_svr run -p 5555
 """
 
+from math import log10
 from flask import Flask, request, redirect, render_template, flash, url_for, session
 from flask_mail import Mail
 import secrets
 import os
 from dotenv import load_dotenv
-from db_utils import add_subscriber, remove_subscriber, verify_token as db_verify_token
+from db_utils import add_subscriber, remove_subscriber, verify_token
 from email_utils import validate_email, generate_verification_token, send_verification_email, Config
 from funcUtils import *
 import subprocess
@@ -347,11 +348,13 @@ def verify_email():
     action = request.args.get('action')
     
     if not all([email, token, action]):
+        log.debug(f"Invalid verification link: {email}, {token}, {action}")
         flash('Invalid verification link', 'danger')
         return redirect(url_for('home'))
     
     # Verify the token
-    if not db_verify_token(email, token):
+    if not verify_token(email, token):
+        log.debug(f"Invalid or expired verification link: {email}, {token}, {action}")
         flash('Invalid or expired verification link', 'danger')
         return redirect(url_for('home'))
     

@@ -69,7 +69,7 @@ def add_subscriber(email, token):
     with get_db_connection() as conn:
         try:
             conn.execute(f'''
-            INSERT INTO {user_tbl} (email, token, is_active, updated_at)
+            INSERT INTO {user_tbl} (email, token, is_active, created_at)
             VALUES (?, ?, {States['pending']}, CURRENT_TIMESTAMP)
             ON CONFLICT(email) DO UPDATE SET
                 is_active = {States['active']},
@@ -97,11 +97,10 @@ def verify_token(email, token):
     with get_db_connection() as conn:
         cursor = conn.execute(f'''
             SELECT id FROM {user_tbl} 
-            WHERE email = ? AND token = ? AND is_active = {States['pending']}''',
+            WHERE email = ? AND token = ? ''',
             (email, token)
         )
         result = cursor.fetchone()
-        log.debug(f"Token verification for {email}: {result is not None}")
         return result is not None
 
 def get_subscribers(state='active'):
