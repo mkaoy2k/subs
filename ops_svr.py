@@ -17,7 +17,7 @@ flask --app ops_svr run -p 5555
 """
 
 from math import log10
-from flask import Flask, request, redirect, render_template, flash, url_for, session
+from flask import Flask, request, redirect, render_template, flash, url_for, session, jsonify
 from flask_mail import Mail
 import secrets
 import os
@@ -26,39 +26,39 @@ from db_utils import add_subscriber, remove_subscriber, verify_token
 from email_utils import validate_email, generate_verification_token, send_verification_email, Config
 from funcUtils import *
 import subprocess
-from dotenv import load_dotenv  # pip install python-dotenv
+from dotenv import load_dotenv  # 安裝: pip install python-dotenv
 import logging
 
 # 載入環境變數
 load_dotenv(".env")
 
-# Configure logging
+# 配置日誌記錄
 log = logging.getLogger(__name__)
 log_level = os.getenv('LOGGING', 'WARNING').upper()
 log.setLevel(getattr(logging, log_level, logging.WARNING))
 
-# Remove any existing handlers to avoid duplicates
+# 移除現有的處理程序以避免重複
 log.handlers = []
 
-# Configure console handler with the desired format
+# 配置控制台處理程序的格式
 console_handler = logging.StreamHandler()
 console_handler.setLevel(log_level)
 formatter = logging.Formatter('%(asctime)s - %(name)s:%(lineno)d - %(levelname)s - %(message)s')
 console_handler.setFormatter(formatter)
 
-# Add the handler to our logger
+# 將處理程序添加到日誌記錄器
 log.addHandler(console_handler)
 
-# Prevent propagation to root logger
+# 防止傳播到根日誌記錄器
 log.propagate = False
 
-# Configure Flask app
+# 配置 Flask 應用程序
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', os.urandom(24))  # Required for session management
+app.secret_key = os.getenv('SECRET_KEY', os.urandom(24))  # 會話管理所需
 
-# Configure Flask-Mail with SSL on port 465
+# 在 465 端口上配置帶有 SSL 的 Flask-Mail
 app.config.update(
-    # Basic settings
+    # 基本設置
     MAIL_SERVER=os.getenv('MAIL_SERVER', 'smtp.gmail.com'),
     MAIL_PORT=465,
     MAIL_USE_TLS=False,
@@ -66,15 +66,15 @@ app.config.update(
     MAIL_USERNAME=os.getenv('MAIL_USERNAME'),
     MAIL_PASSWORD=os.getenv('MAIL_PASSWORD'),
     MAIL_DEFAULT_SENDER=os.getenv('MAIL_DEFAULT_SENDER', 'noreply@familytree.com'),
-    # Additional settings for better reliability
-    MAIL_DEBUG=0,  # Set to 1 for SMTP debug output
+    # 提高可靠性的其他設置
+    MAIL_DEBUG=0,  # 設置為 1 可獲取 SMTP 調試輸出
     MAIL_SUPPRESS_SEND=False
 )
 
-# Initialize Flask-Mail
+# 初始化 Flask-Mail
 mail = Mail(app)
 
-# Test email configuration
+# 測試電子郵件配置
 log.info(f"Email server configured: {app.config['MAIL_SERVER']}:{app.config['MAIL_PORT']}")
 log.info(f"Using TLS: {app.config['MAIL_USE_TLS']}, Using SSL: {app.config['MAIL_USE_SSL']}")
 
@@ -287,16 +287,6 @@ def set_l10n():
         return redirect(f"{ft_svr}")
 
 
-def main():
-    """
-    主函數
-    
-    啟動 Flask 營運伺服器
-    """
-    log.info("啟動 FamilyTree 操作伺服器...")
-    app.run(debug=True, port=5555)
-
-
 @app.route('/subscribe', methods=['POST'])
 def subscribe():
     """
@@ -314,17 +304,17 @@ def subscribe():
     
     try:
         if action == 'subscribe':
-            # Generate verification token
+            # 生成驗證令牌
             token = generate_verification_token()
-            # Send verification email
+            # 發送驗證郵件
             if send_verification_email(mail, email, token, is_subscribe=True, max_retries=3):
                 flash('Please check your email to confirm your subscription.', 'info')
                 add_subscriber(email, token)
             else:
                 flash('Failed to send verification email. Please try again later.', 'danger')
         else:
-            # For unsubscribe, we can either send a verification email or directly unsubscribe
-            # Here we'll send a verification email for security
+            # 對於退訂，我們可以發送驗證郵件或直接退訂
+            # 為了安全起見，我們在這裡發送驗證郵件
             token = generate_verification_token()
             if send_verification_email(mail, email, token, is_subscribe=False, max_retries=3):
                 flash('Please check your email to confirm unsubscription.', 'info')
@@ -341,7 +331,7 @@ def subscribe():
 @app.route('/verify-email')
 def verify_email():
     """
-    Verify email subscription/unsubscription
+    驗證電子郵件訂閱/退訂
     """
     email = request.args.get('email')
     token = request.args.get('token')
@@ -352,13 +342,13 @@ def verify_email():
         flash('Invalid verification link', 'danger')
         return redirect(url_for('home'))
     
-    # Verify the token
+    # 驗證令牌
     if not verify_token(email, token):
         log.debug(f"Invalid or expired verification link: {email}, {token}, {action}")
         flash('Invalid or expired verification link', 'danger')
         return redirect(url_for('home'))
     
-    # Process subscription/unsubscription
+    # 處理訂閱/退訂
     if action == 'subscribe':
         add_subscriber(email, token)
         flash('You have been successfully subscribed to our newsletter!', 'success')
@@ -368,6 +358,97 @@ def verify_email():
     
     return redirect(url_for('home'))
 
+@app.route('/db-query')
+def db_query():
+    """通過運行 ops_db_query.py 作為子進程執行數據庫查詢。
+    
+    返回:
+        Response: 包含查詢結果或錯誤訊息的 JSON 回應
+    """
+    import subprocess
+    import json
+    import os
+    
+    try:
+        # 獲取當前腳本所在目錄
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        script_path = os.path.join(script_dir, 'ops_db_query.py')
+        
+        # 運行腳本並不捕獲輸出
+        subprocess.run(
+            ['.venv/bin/streamlit', 'run', script_path],
+            capture_output=False,
+            text=True,
+            check=True
+        )
+            
+    except subprocess.CalledProcessError as e:
+        flash(jsonify({
+            'status': 'error',
+            'message': 'Script execution failed',
+            'error': str(e),
+            'stdout': e.stdout,
+            'stderr': e.stderr
+        }), 'danger')
+        
+    except Exception as e:
+        flash(jsonify({
+            'status': 'error',
+            'message': 'An unexpected error occurred',
+            'error': str(e)
+        }), 'danger')
+    return redirect(url_for('home'))
+
+@app.route('/db-update')
+def db_update():
+    """通過運行 ops_db_update.py 作為子進程執行數據庫更新。
+    
+    返回:
+        Response: 包含更新結果或錯誤訊息的 JSON 回應
+    """
+    import subprocess
+    import json
+    import os
+    
+    try:
+        # 獲取當前腳本所在目錄
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        script_path = os.path.join(script_dir, 'ops_db_update.py')
+        
+        # 運行腳本並不捕獲輸出
+        subprocess.run(
+            ['.venv/bin/streamlit', 'run', script_path],
+            capture_output=False,
+            text=True,
+            check=True
+        )
+            
+    except subprocess.CalledProcessError as e:
+        flash(jsonify({
+            'status': 'error',
+            'message': 'Update script execution failed',
+            'error': str(e),
+            'stdout': e.stdout,
+            'stderr': e.stderr
+        }), 'danger')
+        
+    except Exception as e:
+        flash(jsonify({
+            'status': 'error',
+            'message': 'An unexpected error occurred during update',
+            'error': str(e)
+        }), 'danger')
+    
+    return redirect(url_for('home'))
+
+def main():
+    """
+    主函數
+    
+    啟動 Flask 營運伺服器
+    """
+    log.info("啟動 FamilyTree 操作伺服器...")
+    app.run(debug=True, port=5555)
 
 if __name__ == "__main__":
     main()

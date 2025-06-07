@@ -2,15 +2,19 @@
     "HOME_HTML_H1" : "FamilyTrees Blog",
     "HOME_HTML_T1" : "What's New?",
     "HOME_HTML_T1_JOKES" : [
-        "Yesterday at lunchtime, a male colleague went out without taking his phone.\n",
-        "His wife kept calling him, and the female colleague who was taking a nap felt annoyed.\n",
-        "She then picked up the phone and yelled: 'We are sleeping, leave us alone, will you?'\n",
-        "As a result, that male colleague has not yet come to work since."
+        "A man asked Buddha: \"I want happiness.\" ",
+        "Buddha said: ",
+        "First remove \"I\", that's ego. ",
+        "Then remove \"Want\", that's desire. ",
+        "If you aren't selfish and you aren't greedy, either, ",
+        "you won't worry too much about your personal interests. ",
+        "Now then let's see what you are left with: ",
+        "Only \"HAPPINESS\"!"
         ],
     "HOME_HTML_T2" : "Motto of the Day",
     "HOME_HTML_T2_MOTTO" : [
-        "Women who are drunk will open their mouths.\n",
-        "Whereas drunk men will open their wallets."
+        "Women who are drunk open their mouths, ",
+        "whereas drunk men open their wallets."
         ],
     "HOME_HTML_T3" : "Python eBook",
     "HOME_HTML_T3_USER" : "Good for folks who want to learn Python.",
@@ -25,9 +29,9 @@
     "visualize how members are related each other ",
     "in a graphic representation. When needed, you can download the ",
     "graph to keep via email. Or even the entire family tree can ",
-    "be downloaded at will. And lastly but not least, the ",
-    "service is 100% FREE for the public.",
-    ""
+    "be downloaded at will. ",
+    "And lastly but not least, the ",
+    "service is 100% FREE for the public."
     ],
     "ABOUT_USAGE_H2" : "Download FamilyTrees",
     "ABOUT_USAGE" : "https://github.com/mkaoy2k/ftpe#",
@@ -36,29 +40,24 @@
     "FAQ_DOWNLOAD" : [
     "Click the 'Download' button, ",
     "the data will be downloaded as a CSV file with the name of your choice ",
-    "(without .csv extension) in the Downloads directory.",
-    ""
+    "(without .csv extension) in the Downloads directory."
     ],
     "FAQ_TRY_DEMO" : "Try FamilyTrees App with a sample family!",
     "FAQ_CHARGE_Q" : "Any Cost using FamilyTrees?",
     "FAQ_CHARGE" : [
     "Using FamilyTrees is 100% FREE.",
-    "Feel free to share this app to your friends and families. ",
-    ""
+    "Feel free to share this app to your friends and families. "
     ],
     "FAQ_DONATE_Q" : "How to Donate?",
     "FAQ_DONATE" : [
-    "To support, buying me a cup of coffee would be very much appreciated. ",
-    ""
+    "To support, buying me a cup of coffee would be very much appreciated. "
     ],
     "FAQ_CREATOR_Q" : "Who Created FamilyTrees?",
     "FAQ_CREATOR" : [
-    "Created with ❤️ by Michael Kao.",
-    ""
+    "Created with ❤️ by Michael Kao."
     ],
     "ABOUT_MARKDOWN" : [
     "# Why do I need FamilyTrees :question:",
-    "",
     "The 'FamilyTrees' service is free, and not only helping you ",
     "manage your entire family tree when your family member status",
     "changes or discovery found during your root search process.",
@@ -69,7 +68,6 @@
     "And when needed, you can download graphs via email. ",
     "While building and managing your entire family tree, ",
     "FamilyTrees also provides you with the following benefits:",
-    "",
     "1. :thumbsup: _Safety_: \n",
     "   The Login/Password is implemented to protect your family data ",
     "   from illegal access. The access points of FailyTrees are ",
