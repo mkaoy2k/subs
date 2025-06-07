@@ -1,6 +1,6 @@
 {
-    "HOME_HTML_H1" : "Python Blog",
-    "HOME_HTML_T1" : "Joke of the Day",
+    "HOME_HTML_H1" : "FamilyTrees Blog",
+    "HOME_HTML_T1" : "What's New?",
     "HOME_HTML_T1_JOKES" : [
         "Yesterday at lunchtime, a male colleague went out without taking his phone.\n",
         "His wife kept calling him, and the female colleague who was taking a nap felt annoyed.\n",
@@ -13,7 +13,7 @@
         "Whereas drunk men will open their wallets."
         ],
     "HOME_HTML_T3" : "Python eBook",
-    "HOME_HTML_T3_USER" : "Good for kids who want to learn Python.",
+    "HOME_HTML_T3_USER" : "Good for folks who want to learn Python.",
     "HOME_HTML_T3_DOWNLOAD" : "Download eBook",
     "ABOUT_HTML_H1" : "About FamilyTrees App",
     "ABOUT_ABS_H2" : "Introduction",
@@ -29,92 +29,17 @@
     "service is 100% FREE for the public.",
     ""
     ],
-    "ABOUT_USAGE_H2" : "How It Works",
-    "ABOUT_USAGE" : [
-    "The Family Trees service was designed to ",
-    "help people easily build their family tree over time should ",
-    "any family member status changes. And at any time to document ",
-    "and share with your loved ones during the family root search ",
-    "discovery. There are 4 forms on the FamilyTrees landing page: ",
-    "(1) 'Login' form, (2) 'Server Settings' form, ",
-    "(3) 'Reset Password' form, and (4) 'Sign Up' form, as follows:",
-    ""
-    ],
-    "ABOUT_SIGNUP_Q" : "Sign Up First",
-    "ABOUT_SIGNUP" : [
-    "Scroll down to the 'Sign Up' form on the bottom of the landing ",
-    "ppage. Fill it out to sign up. Once submitted, an verification ",
-    "email will be sent to your email for your verification.",
-    ""
-    ],
-    "ABOUT_LOGIN_Q" : "Activate and Login",
-    "ABOUT_LOGIN" : [
-    "Upon your verification, click FamilyTrees Service link to login.",
-    ""
-    ],
-    "ABOUT_RESETPW_Q" : "Forgot Your Username and Password",
-    "ABOUT_RESETPW" : [
-    "In case you forgot username or password, goto the FamilyTrees ",
-    "landing page. Locate the 'Reset Password' form and fill out ",
-    "your email and new passwords to reset. FamilyTrees will ",
-    "return your original username once succeeded.",
-    ""
-    ],
-    "ABOUT_SETTINGS_Q" : "Server Settings",
-    "ABOUT_SETTINGS" : [
-    "Currently FamilyTrees supports: ",
-    "(1)'Server Logging Level' for customer support staff, ",
-    "(2)'Language About this Page' for users to choose.",
-    ""
-    ],
-    "ABOUT_FB_H2" : "Features And Benefits",
-    "ABOUT_FB" : [
-    "While building and managing your entire family tree, ",
-    "FamilyTrees also provides you with the following benefits:",
-    ""
-    ],    
-    "ABOUT_FB_SAFETY" : "Safety",
-    "ABOUT_SAFETY" : [
-    "The Login/Password is implemented to protect your family data ",
-    "from illegal access. The access points of FailyTrees are ",
-    "also leveraging Google's OAuth 2.0 to avoid DDoS attacks.",
-    ""
-    ],
-    "ABOUT_FB_BACKUP" : "Backup",
-    "ABOUT_BACKUP" : [
-    "Your family tree is backed up regularily and automatically.",
-    "And you can also keep your own copy as easy as clicking ",
-    "a button to download it locally which may eventually become ",
-    "part of your legacy to pass woen as your family heritage.",
-    ""
-    ],
-    "ABOUT_FB_SHARING" : "Sharing",
-    "ABOUT_SHARING" : [
-    "To share with your family tree, simply passing along your ",
-    "credential to them. They can help you to review and build ",
-    "the same family tree of yours. Or better yet, with ",
-    "divide-and-conquer approach, several registered users are ",
-    "allowed to build different parts of the family tree ",
-    "simultaneously. And merge them together later for sharing ",
-    "the whole family tree which might eventually become the ",
-    "legacy of your family heritage.",
-    ""
-    ],
-    "ABOUT_FB_MLS" : "Multi-Language Support",
-    "ABOUT_MLS" : [
-    "Currently, supported languages: TW, and US. ",
-    "Please let us know if you are interested in localizing ",
-    "famililiar language of yours.",
-    ""
-    ],
+    "ABOUT_USAGE_H2" : "Download FamilyTrees",
+    "ABOUT_USAGE" : "https://github.com/mkaoy2k/ftpe#",
     "FAQ_HTML_H1" : "Frequently Asked Questions",
-    "FAQ_DOWNLOAD_Q" : "How to download my family tree?",
+    "FAQ_DOWNLOAD_Q" : "How to Download my Family Data?",
     "FAQ_DOWNLOAD" : [
     "Click the 'Download' button, ",
     "the data will be downloaded as a CSV file with the name of your choice ",
     "(without .csv extension) in the Downloads directory.",
     ""
     ],
+    "FAQ_TRY_DEMO" : "Try FamilyTrees App with a sample family!",
     "FAQ_CHARGE_Q" : "Any Cost using FamilyTrees?",
     "FAQ_CHARGE" : [
     "Using FamilyTrees is 100% FREE.",

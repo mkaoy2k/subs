@@ -1,6 +1,6 @@
 {% extends "layout.html" %} {% block content %}
 <h1 class="mb-3">{{ header }}</h1>
-<h3 id="currentDate"></h3>
+<h3 id="currentDate" style="text-align: right; font-size: 0.9em; font-style: italic; color: #666; margin-top: -1em; margin-bottom: 1.5em;"></h3>
 <script>
     // 創建日期物件
     const today = new Date();
@@ -10,7 +10,7 @@
     const day = today.getDate();
     
     // 將日期轉換為繁體中文格式
-    const chineseDate = `${year}年${month}月${day}日`;
+    const chineseDate = `${year}-${month}-${day}`;
     // 將日期顯示在 HTML 中
     document.getElementById('currentDate').textContent = chineseDate;
     </script>

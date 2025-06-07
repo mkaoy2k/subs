@@ -1,7 +1,7 @@
 """
-FamilyTree 網站操作伺服器
+FamilyTrees 營運伺服器
 
-此模組提供 FamilyTree 網站的後端服務，包括用戶激活、常見問題和關於頁面的多語言支援。
+此模組提供 FamilyTrees 網站的後端服務，包括用戶激活、常見問題和關於頁面的多語言支援。
 
 主要功能：
 - 用戶帳號激活
@@ -13,7 +13,7 @@ FamilyTree 網站操作伺服器
 python ops_svr.py
 
 方法 2: 使用 Flask 命令
-flask --app ops_svr run -p 8501
+flask --app ops_svr run -p 5555
 """
 
 from flask import Flask, request, redirect, render_template, flash, url_for, session
@@ -138,17 +138,7 @@ def init_globals():
         
         # 初始化關於頁面
         l_about = {
-            'abs': "".join(l_loc['ABOUT_HTML_ABS']),
-            'use': "".join(l_loc['ABOUT_USAGE']),
-            'signup': "".join(l_loc['ABOUT_SIGNUP']),
-            'login': "".join(l_loc['ABOUT_LOGIN']),
-            'resetpw': "".join(l_loc['ABOUT_RESETPW']),
-            'settings': "".join(l_loc['ABOUT_SETTINGS']),
-            'fb': "".join(l_loc['ABOUT_FB']),
-            'safety': "".join(l_loc['ABOUT_SAFETY']),
-            'backup': "".join(l_loc['ABOUT_BACKUP']),
-            'sharing': "".join(l_loc['ABOUT_SHARING']),
-            'mls': "".join(l_loc['ABOUT_MLS'])
+            'abs': "".join(l_loc['ABOUT_HTML_ABS'])
         }
         l_page['about'] = l_about
         g_PAGE[key] = l_page
@@ -218,6 +208,7 @@ def faq():
         header=g_loc['FAQ_HTML_H1'],
         faq_download_q=g_loc['FAQ_DOWNLOAD_Q'],
         faq_download=g_faq['download'],
+        faq_try_demo=g_loc['FAQ_TRY_DEMO'],
         faq_charge_q=g_loc['FAQ_CHARGE_Q'],
         faq_charge=g_faq['charge'],
         faq_donate_q=g_loc['FAQ_DONATE_Q'],
@@ -242,25 +233,7 @@ def about():
         abs_header=g_loc['ABOUT_ABS_H2'],
         abs=g_about['abs'],
         usage_header=g_loc['ABOUT_USAGE_H2'],
-        usage=g_about['use'],
-        signup_q=g_loc['ABOUT_SIGNUP_Q'],
-        signup=g_about['signup'],
-        login_q=g_loc['ABOUT_LOGIN_Q'],
-        login=g_about['login'],
-        resetpw_q=g_loc['ABOUT_RESETPW_Q'],
-        resetpw=g_about['resetpw'],
-        settings_q=g_loc['ABOUT_SETTINGS_Q'],
-        settings=g_about['settings'],
-        fb_header=g_loc['ABOUT_FB_H2'],
-        fb=g_about['fb'],
-        fb_safety=g_loc['ABOUT_FB_SAFETY'],
-        safety=g_about['safety'],
-        fb_backup=g_loc['ABOUT_FB_BACKUP'],
-        backup=g_about['backup'],
-        fb_sharing=g_loc['ABOUT_FB_SHARING'],
-        sharing=g_about['sharing'],
-        fb_mls=g_loc['ABOUT_FB_MLS'],
-        mls=g_about['mls'],
+        usage=g_loc['ABOUT_USAGE'],
         title='about')
 
 @app.route("/setL10N")
@@ -317,10 +290,10 @@ def main():
     """
     主函數
     
-    啟動 Flask 開發伺服器
+    啟動 Flask 營運伺服器
     """
     log.info("啟動 FamilyTree 操作伺服器...")
-    app.run(debug=True, port=8501)
+    app.run(debug=True, port=5555)
 
 
 @app.route('/subscribe', methods=['POST'])

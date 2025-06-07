@@ -29,42 +29,79 @@ st.title("Query User Database")
 st.markdown(
     """
     ##### *Created with ❤️ by* [Michael Kao](https://github.com/mkaoy2k):sunglasses:
-    ---
     """
     )
 
 df = pd.DataFrame()
-btn1, btn2, btn3 = st.columns([2,2,2])
+btn1, btn2, btn3 = st.columns([5,5,3])
 
 try:
     with btn1:
         if st.button("Active Subscribers"):
-            users = dbm.get_subscribers()
-            # keys as columns
-            df = pd.DataFrame.from_dict(users, orient='columns')
-            st.write(df)    
+            users = dbm.get_subscribers(state='active')
+            if users:
+                # Create DataFrame with explicit dtype for each column
+                df = pd.DataFrame(users, columns=users[0].keys())
+                # Convert timestamp columns to string for display
+                for col in ['created_at', 'updated_at']:
+                    if col in df.columns:
+                        df[col] = df[col].astype(str)
+                st.dataframe(df)  # Use st.dataframe instead of st.write for DataFrames
+            else:
+                st.info("No active subscribers found")    
     with btn3:
         if st.button("Inactive Subscribers"):
-            users = dbm.get_subscribers(status='inactive')
-            df = pd.DataFrame.from_dict(users, orient='columns')
-            st.write(df)    
+            users = dbm.get_subscribers(state='inactive')
+            if users:
+                df = pd.DataFrame(users, columns=users[0].keys())
+                for col in ['created_at', 'updated_at']:
+                    if col in df.columns:
+                        df[col] = df[col].astype(str)
+                st.dataframe(df)
+            else:
+                st.info("No inactive subscribers found")
     with btn2:
         if st.button("All Subscribers"):
-            users = dbm.get_subscribers(status='both')
-            df = pd.DataFrame.from_dict(users, orient='columns')
-            st.write(df)
+            users = dbm.get_subscribers(state='all')
+            if users:
+                df = pd.DataFrame(users, columns=users[0].keys())
+                for col in ['created_at', 'updated_at']:
+                    if col in df.columns:
+                        df[col] = df[col].astype(str)
+                st.dataframe(df)
+            else:
+                st.info("No subscribers found")
                 
     # --- query a specific user --- from here
+    st.markdown(
+    """
+    ---
+    """
+    )
     email = st.text_input(':blue[Email:]', 
                     placeholder='Enter email to Query')
     if st.button("User Query"):
-        user = dbm.get_user(email)
-        if user is not None:
-            st.write(user)
-            # keys as indeces
-            df = pd.DataFrame.from_dict(user, orient='index')  
-            st.write(df)          
-        else:            
-            st.info(f"Email='{email}' not found")
+        if not email.strip():
+            st.warning("Please enter an email address")
+        else:
+            user = dbm.get_user(email)
+            if user is not None:
+                # Create a vertical display of user data
+                st.write("### User Details")
+                # Create two columns for better layout
+                col1, col2 = st.columns(2)
+                
+                # Display user data in a vertical format
+                for i, (key, value) in enumerate(user.items()):
+                    # Convert timestamp to string if needed
+                    if key in ['created_at', 'updated_at'] and value is not None:
+                        value = str(value)
+                    # Alternate between columns for better space usage
+                    if i % 2 == 0:
+                        col1.write(f"**{key.replace('_', ' ').title()}:** {value}")
+                    else:
+                        col2.write(f"**{key.replace('_', ' ').title()}:** {value}")
+            else:            
+                st.info(f"Email '{email}' not found")
 except Exception as err:
     st.info(f"Caught '{err}'. class is {type(err)}")
