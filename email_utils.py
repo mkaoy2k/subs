@@ -34,7 +34,7 @@ class Config:
     MAIL_SUPPRESS_SEND = False  # Actually send emails
     
     # Application configuration
-    APP_NAME = os.getenv('APP_NAME', 'FamilyTrees Ops Server')
+    APP_NAME = os.getenv('APP_NAME', 'FamilyTrees')
     BASE_URL = os.getenv('BASE_URL', 'http://localhost:8501')
 
 def validate_email(email):
@@ -52,7 +52,7 @@ def generate_verification_token():
     """Generate a secure random token for email verification"""
     return secrets.token_urlsafe(32)
 
-def send_verification_email(mail, email, token, is_subscribe=True, max_retries=3):
+def send_verification_email(mail, email, token, is_subscribe=True):
     """
     Send a verification email for subscription or unsubscription with retry logic
     
@@ -61,14 +61,13 @@ def send_verification_email(mail, email, token, is_subscribe=True, max_retries=3
         email (str): Recipient's email address
         token (str): Verification token
         is_subscribe (bool): True for subscription, False for unsubscription
-        max_retries (int): Maximum number of retry attempts
         
     Returns:
         bool: True if email was sent successfully, False otherwise
     """
     log.info(f"Preparing to send verification email to {email}")
     action = 'subscribe' if is_subscribe else 'unsubscribe'
-    subject = f"Please confirm your {action} to {Config.APP_NAME}"
+    subject = f"Please confirm that you want to {action} to {Config.APP_NAME}"
     
     try:
         # Create verification URL
@@ -109,54 +108,122 @@ def send_verification_email(mail, email, token, is_subscribe=True, max_retries=3
         log.debug(f"SMTP Server: {Config.MAIL_SERVER}:{Config.MAIL_PORT}")
         log.debug(f"Using TLS: {Config.MAIL_USE_TLS}, Using SSL: {Config.MAIL_USE_SSL}")
         
-        # Try to send email with retries
-        for attempt in range(max_retries):
-            try:
-                log.info(f"Attempt {attempt + 1}/{max_retries} to send verification email to {email}")
-                
-                # Test SMTP connection first
-                try:
-                    with mail.connect() as conn:
-                        log.debug("Successfully connected to SMTP server")
-                        log.info(f"Sending email to {email}...")
-                        conn.send(msg)
-                        log.info(f"Successfully sent verification email to {email}")
-                        return True
-                        
-                except smtplib.SMTPAuthenticationError as e:
-                    log.error(f"SMTP Authentication Error: {str(e)}")
-                    log.error("Please check your email credentials and ensure you're using an App Password if using Gmail")
-                    return False
-                    
-                except smtplib.SMTPException as e:
-                    log.error(f"SMTP Error (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                    if attempt == max_retries - 1:
-                        log.error(f"Failed to send email after {max_retries} attempts")
-                        return False
-                        
-                except (socket.timeout, socket.gaierror) as e:
-                    log.error(f"Network Error (attempt {attempt + 1}/{max_retries}): {str(e)}")
-                    if attempt == max_retries - 1:
-                        log.error("Network connection failed. Please check your internet connection and firewall settings.")
-                        return False
-                        
-                except Exception as e:
-                    log.error(f"Unexpected error (attempt {attempt + 1}/{max_retries}): {str(e)}", exc_info=True)
-                    if attempt == max_retries - 1:
-                        return False
-                
-                # Wait before retrying (exponential backoff)
-                wait_time = (2 ** attempt) * 2  # 2, 4, 8 seconds
-                log.info(f"Waiting {wait_time} seconds before retry...")
-                time.sleep(wait_time)
-                
-            except Exception as e:
-                log.error(f"Error during email sending attempt {attempt + 1}: {str(e)}", exc_info=True)
-                if attempt == max_retries - 1:
-                    return False
+        # Send the email using the helper function
+        return _send_mail(mail, msg)
                 
     except Exception as e:
         log.error(f"Failed to prepare email: {str(e)}", exc_info=True)
         return False
+
+def send_newsletter(mail, emails, blob):
+    """
+    Send newsletter to the specified email addresses
+    
+    Args:
+        mail: Flask-Mail instance
+        email (list): Recipient's email addresses
+        blob (dict): Blob of data
+    
+    Returns:
+        bool: True if email was sent successfully, False otherwise
+    """
+    log.info(f"Preparing to send newsletter to {emails}")
+
+    try:
+        # Render newsletter template
+        html = render_template(
+            'email/newsletter.html',
+            ft_url=blob['ft_url'],
+            title=blob['title'],
+            header=blob['header'],
+            t1=blob['t1'],
+            t1_news=blob['t1_news'],
+            t2=blob['t2'],
+            t2_motto=blob['t2_motto'],
+            t3=blob['t3'],
+            t3_user=blob['t3_user'],
+            t3_download=blob['t3_download'],
+            t4_greeting=blob['t4_greeting'],
+            t4_team=blob['t4_team'],
+            l10n=blob['l10n']
+        )
+        log.debug("Successfully rendered newsletter template")
         
+        # Configure newsletter message
+        msg = Message(
+            subject="The Kaos Newsletter",
+            recipients=emails,
+            html=html,
+            sender=Config.MAIL_DEFAULT_SENDER
+        )
+        log.debug(f"Prepared newsletter - From: {Config.MAIL_DEFAULT_SENDER}, To: {emails}")
+        
+        # Log SMTP configuration (without sensitive data)
+        log.debug(f"SMTP Server: {Config.MAIL_SERVER}:{Config.MAIL_PORT}")
+        log.debug(f"Using TLS: {Config.MAIL_USE_TLS}, Using SSL: {Config.MAIL_USE_SSL}")
+        
+        # Send the email using the helper function
+        return _send_mail(mail, msg)
+                
+    except Exception as e:
+        log.error(f"Failed to prepare email: {str(e)}", exc_info=True)
+        return False
+    
+def _send_mail(mail, msg, max_retries=3):
+    """
+    Helper function to send email with retry logic
+    
+    Args:
+        mail: Flask-Mail instance
+        msg: Email message to send
+        max_retries (int): Maximum number of retry attempts
+        
+    Returns:
+        bool: True if email was sent successfully, False otherwise
+    """
+    for attempt in range(max_retries):
+        try:
+            log.info(f"Attempt {attempt + 1}/{max_retries} to send email to {msg.recipients}")
+            
+            # Test SMTP connection first
+            try:
+                with mail.connect() as conn:
+                    log.debug("Successfully connected to SMTP server")
+                    log.info(f"Sending email to {msg.recipients}...")
+                    conn.send(msg)
+                    log.info(f"Successfully sent email to {msg.recipients}")
+                    return True
+                    
+            except smtplib.SMTPAuthenticationError as e:
+                log.error(f"SMTP Authentication Error: {str(e)}")
+                log.error("Please check your email credentials and ensure you're using an App Password if using Gmail")
+                return False
+                
+            except smtplib.SMTPException as e:
+                log.error(f"SMTP Error (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                if attempt == max_retries - 1:
+                    log.error(f"Failed to send email after {max_retries} attempts")
+                    return False
+                    
+            except (socket.timeout, socket.gaierror) as e:
+                log.error(f"Network Error (attempt {attempt + 1}/{max_retries}): {str(e)}")
+                if attempt == max_retries - 1:
+                    log.error("Network connection failed. Please check your internet connection and firewall settings.")
+                    return False
+                    
+            except Exception as e:
+                log.error(f"Unexpected error (attempt {attempt + 1}/{max_retries}): {str(e)}", exc_info=True)
+                if attempt == max_retries - 1:
+                    return False
+            
+            # Wait before retrying (exponential backoff)
+            wait_time = (2 ** attempt) * 2  # 2, 4, 8 seconds
+            log.info(f"Waiting {wait_time} seconds before retry...")
+            time.sleep(wait_time)
+            
+        except Exception as e:
+            log.error(f"Error during email sending attempt {attempt + 1}: {str(e)}", exc_info=True)
+            if attempt == max_retries - 1:
+                return False
+    
     return False

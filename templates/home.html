@@ -14,14 +14,14 @@
     // 將日期顯示在 HTML 中
     document.getElementById('currentDate').textContent = chineseDate;
     </script>
-   
+    <a href="{{ ft_url }}" class="btn btn-primary mr-2" target="_blank" rel="noopener noreferrer">{{ h2 }}</a>
     <!-- Include contents in a 2x1 table -->
     <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
         <tr>
             <td style="padding: 10px 0; vertical-align: top;">
                 <h2>{{ t1 }}</h2>
                 <p>
-                    {{ t1_joke }}
+                    {{ t1_news }}
                 </p>
             </td>
         </tr>
@@ -41,4 +41,8 @@
 
 <p><img src="https://github.com/mkaoy2k/Kids-Lets-Play-Python/blob/main/QRCode.png?raw=true" alt="e-book download" width="400" height="400">
 </p>
+
+<div class="footer">
+<p>{{ t4_greeting }},<br>{{ t4_team }}</p>
+</div>
 {% endblock %}

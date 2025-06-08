@@ -1,6 +1,30 @@
 {% extends "layout.html" %} {% block content %}
 <h1 class="mb-3">{{ header }}</h1>
 
+<!-- ops server down -->
+<article class="media content-section">
+  <img
+    class="rounded-circle article-img"
+    src="{{ url_for('static', filename='ScreenShot_ops_down.png') }}"
+  />
+  <div class="media-body">
+    <h3>
+      <a class="article-title" href="https://github.com/mkaoy2k/ftpe"
+        >{{ faq_ops_down_q }}</a>
+    </h3>
+    <p class="article-content">
+    {{ faq_ops_down }}
+    <br>
+    <img 
+      src="{{ url_for('static', filename='ScreenShot_ops_down.png') }}" 
+      alt="Ops Server Down Screenshot"
+      style="max-width: 100%; height: auto; margin: 10px 0;"
+    >
+    </p>
+  </div>
+</article>
+
+<!-- download my family data -->
 <article class="media content-section">
   <img
     class="rounded-circle article-img"
@@ -13,14 +37,21 @@
     </h3>
     <p class="article-content">
     {{ faq_download }}
+    <br>
+    <img 
+      src="{{ url_for('static', filename='ScreenShot_Settings.png') }}" 
+      alt="Settings Screenshot"
+      style="max-width: 100%; height: auto; margin: 10px 0;"
+    >
     </p>
 
     <p class="article-note">
-      <a href="https://crappie-on-kingfish.ngrok-free.app">{{ faq_try_demo }}</a>
+      <a href="{{ ft_url }}" target="_blank" rel="noopener noreferrer">{{ faq_try_demo }}</a>
     </p>
   </div>
 </article>
 
+<!-- how to charge -->
 <article class="media content-section">
   <img
     class="rounded-circle article-img"
@@ -37,6 +68,7 @@
   </div>
 </article>
 
+<!-- how to donate -->
 <article class="media content-section">
   <img
     class="rounded-circle article-img"
@@ -53,6 +85,7 @@
   </div>
 </article>
 
+<!-- who created this app -->
 <article class="media content-section">
   <img
     class="rounded-circle article-img"

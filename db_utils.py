@@ -65,7 +65,8 @@ def init_db():
         conn.commit()
 
 def add_subscriber(email, token):
-    """Add a new subscriber or update existing one"""
+    """Add a new subscriber with pending status 
+    or update existing one with active status"""
     with get_db_connection() as conn:
         try:
             conn.execute(f'''
@@ -186,6 +187,21 @@ def get_user(email):
             
     log.debug(f"No user found with email: {email}")
     return None
+
+def delete_user(email):
+    """
+    Always return None, even if the key does not exist.
+    """
+    with get_db_connection() as conn:
+        cmd = f"DELETE FROM {user_tbl}" 
+        where = f"WHERE email='{email}'"
+        sql_stmt = f"{cmd} {where}"
+        try:
+            cursor = conn.cursor()
+            cursor.execute(f"{sql_stmt}")
+            log.debug(f"{sql_stmt}")
+        except Exception as err:
+            log.error(f"Caught '{err}'. class is {type(err)}")
 
 # Initialize the database when this module is imported
 init_db()

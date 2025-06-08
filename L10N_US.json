@@ -1,15 +1,17 @@
 {
     "HOME_HTML_H1" : "FamilyTrees Blog",
+    "HOME_HTML_H2" : "The Kaos",
     "HOME_HTML_T1" : "What's New?",
-    "HOME_HTML_T1_JOKES" : [
+    "HOME_HTML_T1_NEWS" : [
+        "After all, we're all from the same family. ",
         "A man asked Buddha: \"I want happiness.\" ",
         "Buddha said: ",
-        "First remove \"I\", that's ego. ",
-        "Then remove \"Want\", that's desire. ",
-        "If you aren't selfish and you aren't greedy, either, ",
+        "First, to remove \"I\", that's ego. ",
+        "Then, to remove \"want\", that's desire. ",
+        "If you aren't selfish and aren't greedy, either, ",
         "you won't worry too much about your personal interests. ",
-        "Now then let's see what you are left with: ",
-        "Only \"HAPPINESS\"!"
+        "Then let's see now what you are left with: ",
+        "\"HAPPINESS\"!"
         ],
     "HOME_HTML_T2" : "Motto of the Day",
     "HOME_HTML_T2_MOTTO" : [
@@ -19,6 +21,8 @@
     "HOME_HTML_T3" : "Python eBook",
     "HOME_HTML_T3_USER" : "Good for folks who want to learn Python.",
     "HOME_HTML_T3_DOWNLOAD" : "Download eBook",
+    "HOME_HTML_T4_GREETING" : "Best regards,",
+    "HOME_HTML_T4_TEAM" : "The Kaos Team",
     "ABOUT_HTML_H1" : "About FamilyTrees App",
     "ABOUT_ABS_H2" : "Introduction",
     "ABOUT_HTML_ABS" : [
@@ -33,14 +37,17 @@
     "And lastly but not least, the ",
     "service is 100% FREE for the public."
     ],
-    "ABOUT_USAGE_H2" : "Download FamilyTrees",
-    "ABOUT_USAGE" : "https://github.com/mkaoy2k/ftpe#",
+    "ABOUT_USAGE_H2" : "Download App Source Code",
     "FAQ_HTML_H1" : "Frequently Asked Questions",
+    "FAQ_OPS_DOWN_Q" : "Ops Server Down?",
+    "FAQ_OPS_DOWN" : [
+    "Please try again later."
+    ],
     "FAQ_DOWNLOAD_Q" : "How to Download my Family Data?",
     "FAQ_DOWNLOAD" : [
     "Click the 'Download' button, ",
     "the data will be downloaded as a CSV file with the name of your choice ",
-    "(without .csv extension) in the Downloads directory."
+    "(without .csv extension) in the 'Downloads' directory."
     ],
     "FAQ_TRY_DEMO" : "Try FamilyTrees App with a sample family!",
     "FAQ_CHARGE_Q" : "Any Cost using FamilyTrees?",

@@ -16,15 +16,14 @@ python ops_svr.py
 flask --app ops_svr run -p 5555
 """
 
-from math import log10
 from flask import Flask, request, redirect, render_template, flash, url_for, session, jsonify
 from flask_mail import Mail
 import secrets
 import os
 from dotenv import load_dotenv
-from db_utils import add_subscriber, remove_subscriber, verify_token
-from email_utils import validate_email, generate_verification_token, send_verification_email, Config
-from funcUtils import *
+from db_utils import add_subscriber, remove_subscriber, verify_token, get_subscribers
+from email_utils import validate_email, generate_verification_token, send_verification_email, send_newsletter
+from funcUtils import load_menu, load_L10N
 import subprocess
 from dotenv import load_dotenv  # 安裝: pip install python-dotenv
 import logging
@@ -92,12 +91,14 @@ def init_globals():
         tuple: 包含所有全局變數的元組
     """
     # 載入資料庫後端設定
-    backend = os.getenv("DB_SVR")
+    backend = os.getenv("DB_SVR", "sqlite3")
     log.debug(f"DB_SVR import: {backend}")
     
     # 設定 FamilyTrees 伺服器端點
-    ft_svr = os.getenv("FT_SVR")
+    ft_svr = os.getenv("FT_SVR", "https://crappie-on-kingfish.ngrok-free.app")
     log.debug(f"FamilyTrees Server: {ft_svr}")    
+    git_svr = os.getenv("GIT_SVR", "https://github.com/mkaoy2k/ftpe.git")
+    log.debug(f"GitHub Server: {git_svr}")
     
     # 載入多語言支援
     l10n_file = os.getenv("L10N_FILE")    
@@ -123,13 +124,14 @@ def init_globals():
         
         # 初始化 home page
         l_home = {
-            't1_joke': "".join(l_loc['HOME_HTML_T1_JOKES']),
+            't1_news': "".join(l_loc['HOME_HTML_T1_NEWS']),
             't2_motto': "".join(l_loc['HOME_HTML_T2_MOTTO']),
         }
         l_page['home'] = l_home
         
         # 初始化常見問題頁面
         l_faq = {
+            'ops_down': "".join(l_loc['FAQ_OPS_DOWN']),
             'download': "".join(l_loc['FAQ_DOWNLOAD']),
             'charge': "".join(l_loc['FAQ_CHARGE']),
             'donate': "".join(l_loc['FAQ_DONATE']),
@@ -150,11 +152,11 @@ def init_globals():
     g_faq = g_PAGE[key]['faq']
     g_about = g_PAGE[key]['about']
     
-    return (backend, ft_svr, g_L10N, g_L10N_options,
+    return (backend, ft_svr, git_svr, g_L10N, g_L10N_options,
             g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, g_home, g_faq, g_about)
 
 # 初始化全局變數
-(backend, ft_svr, g_L10N, g_L10N_options,
+(backend, ft_svr, git_svr, g_L10N, g_L10N_options,
  g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, 
  g_home, g_faq, g_about) = init_globals()
 
@@ -172,13 +174,17 @@ def home():
         menu=g_menu,
         options=g_L10N_options,
         header=g_loc['HOME_HTML_H1'],
+        h2=g_loc['HOME_HTML_H2'],
+        ft_url=ft_svr,
         t1=g_loc['HOME_HTML_T1'],
-        t1_joke=g_home['t1_joke'],
+        t1_news=g_home['t1_news'],
         t2=g_loc['HOME_HTML_T2'],
         t2_motto=g_home['t2_motto'],
         t3=g_loc['HOME_HTML_T3'],
         t3_user=g_loc['HOME_HTML_T3_USER'],
         t3_download=g_loc['HOME_HTML_T3_DOWNLOAD'],
+        t4_greeting=g_loc['HOME_HTML_T4_GREETING'],
+        t4_team=g_loc['HOME_HTML_T4_TEAM'],
         title='home')
 
 @app.route("/faq")
@@ -201,15 +207,18 @@ def faq():
     模板文件:
         faq.html: 用於渲染 FAQ 頁面的模板
     """
-    global g_loc, g_L10N_options, g_menu, g_faq
+    global g_loc, g_L10N_options, g_menu, g_faq, ft_svr
     
     return render_template('faq.html',
         menu=g_menu,
         options=g_L10N_options,
         header=g_loc['FAQ_HTML_H1'],
+        faq_ops_down_q=g_loc['FAQ_OPS_DOWN_Q'],
+        faq_ops_down=g_faq['ops_down'],
         faq_download_q=g_loc['FAQ_DOWNLOAD_Q'],
         faq_download=g_faq['download'],
         faq_try_demo=g_loc['FAQ_TRY_DEMO'],
+        ft_url=ft_svr,
         faq_charge_q=g_loc['FAQ_CHARGE_Q'],
         faq_charge=g_faq['charge'],
         faq_donate_q=g_loc['FAQ_DONATE_Q'],
@@ -225,7 +234,7 @@ def about():
     Returns:
         Response: About FamilyTree 主網站
     """
-    global g_loc, g_L10N_options, g_menu, g_about
+    global g_loc, g_L10N_options, g_menu, g_about, git_svr
     
     return render_template('About.html',
         menu=g_menu,
@@ -234,7 +243,8 @@ def about():
         abs_header=g_loc['ABOUT_ABS_H2'],
         abs=g_about['abs'],
         usage_header=g_loc['ABOUT_USAGE_H2'],
-        usage=g_loc['ABOUT_USAGE'],
+        git_url=git_svr,
+        usage=git_svr,
         title='about')
 
 @app.route("/setL10N")
@@ -358,7 +368,8 @@ def verify_email():
     
     return redirect(url_for('home'))
 
-@app.route('/db-query')
+# ---- Internal tools below ----
+@app.route('/dbq')
 def db_query():
     """通過運行 ops_db_query.py 作為子進程執行數據庫查詢。
     
@@ -399,7 +410,7 @@ def db_query():
         }), 'danger')
     return redirect(url_for('home'))
 
-@app.route('/db-update')
+@app.route('/dbu')
 def db_update():
     """通過運行 ops_db_update.py 作為子進程執行數據庫更新。
     
@@ -440,6 +451,46 @@ def db_update():
         }), 'danger')
     
     return redirect(url_for('home'))
+
+@app.route('/pub')
+def pub_newsletter():
+    """
+    retrieve active subscribers' emails from db and send newsletter
+    """
+    global g_loc, g_home, g_loc_key
+    
+    users = get_subscribers(state='active')
+    emails = []
+    if users is not None:
+        for user in users:
+            emails.append(user['email'])
+    
+    if emails is not None:
+        # create blob dictionary
+        blob = {
+            'ft_url': ft_svr,
+            'title': g_loc['HOME_HTML_H1'],
+            'header': g_loc['HOME_HTML_H2'],
+            't1': g_loc['HOME_HTML_T1'],
+            't1_news': g_home['t1_news'],
+            't2': g_loc['HOME_HTML_T2'],
+            't2_motto': g_home['t2_motto'],
+            't3': g_loc['HOME_HTML_T3'],
+            't3_user': g_loc['HOME_HTML_T3_USER'],
+            't3_download': g_loc['HOME_HTML_T3_DOWNLOAD'],
+            't4_greeting': g_loc['HOME_HTML_T4_GREETING'],
+            't4_team': g_loc['HOME_HTML_T4_TEAM'],
+            'l10n': g_loc_key
+        }
+        try:
+            send_newsletter(mail, emails, blob)
+            flash('Newsletter sent successfully', 'success')
+        except Exception as e:
+            flash('Newsletter sent failed', 'danger')
+    else:
+        flash('No subscribers found', 'warning')
+    
+    return redirect(url_for('home'))    
 
 def main():
     """

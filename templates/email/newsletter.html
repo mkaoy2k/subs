@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1,
+        h2,
+        h3,
+        h4,
+        h5,
+        h6 {
+            color: #6a4dca;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 20px 0;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <a href="{{ ft_url }}" target="_blank" rel="noopener noreferrer">
+    <h1>{{ header }}</h1>
+    </a>
+    
+    <h2>{{ t1 }}</h2>
+    <p>
+        {{ t1_news }}
+    </p>
+    <h2>{{ t2 }}</h2>
+    <p>
+        {{ t2_motto }}
+    </p>
+    <h2>{{ t3 }}</h2>
+    <p>{{ t3_user }}</p>
+    <p><a href="https://github.com/mkaoy2k/Kids-Lets-Play-Python/blob/main/2.0%20小朋友玩大蟒蛇.pdf">{{ t3_download }}</a></p>
+    
+    <p><img src="https://github.com/mkaoy2k/Kids-Lets-Play-Python/blob/main/QRCode.png?raw=true" alt="e-book download" width="150" height="150">
+    </p>
+    
+    <p>
+        <a href="{{ ft_url }}" target="_blank" rel="noopener noreferrer" class="button">
+            {{ header }}
+        </a>
+    </p>
+    
+    <p>{{ t4_greeting }},<br>{{ t4_team }}</p>
+</body>
+</html>

@@ -59,6 +59,7 @@ a.article-title:hover {
 .article-note {
   color: #0a29f0;
 }
+
 .article-metadata {
   padding-bottom: 1px;
   margin-bottom: 4px;
@@ -85,4 +86,20 @@ a.article-title:hover {
 
 .account-heading {
   font-size: 2.5rem;
+}
+
+.button {
+  display: inline-block;
+  padding: 10px 20px;
+  margin: 20px 0;
+  background-color: #007bff;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+}
+
+.footer {
+  margin-top: 30px;
+  font-size: 12px;
+  color: #666;
 }

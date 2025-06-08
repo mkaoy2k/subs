@@ -33,47 +33,59 @@ st.markdown(
     """
     )
 
+def format_timestamps(df):
+    """Convert UTC timestamps to Pacific Time (with DST) and format"""
+    for col in ['created_at', 'updated_at']:
+        if col in df.columns:
+            # Parse as UTC and convert to Pacific Time (handles DST automatically)
+            df[col] = pd.to_datetime(df[col], utc=True)
+            df[col] = df[col].dt.tz_convert('America/Los_Angeles').dt.strftime('%Y-%m-%d %H:%M:%S')
+    return df
+
 df = pd.DataFrame()
-btn1, btn2 = st.columns([5,5])
+btn1, btn2, btn3 = st.columns([5,5,5])
 
 try:
     with btn1:
-        if st.button("Active Subscribers"):
+        if st.button("Active"):
             users = dbm.get_subscribers(state='active')
             if users:
-                # Create DataFrame with explicit dtype for each column
                 df = pd.DataFrame(users, columns=users[0].keys())
-                # Convert timestamp columns to string for display
-                for col in ['created_at', 'updated_at']:
-                    if col in df.columns:
-                        df[col] = df[col].astype(str)
-                st.dataframe(df)  # Use st.dataframe instead of st.write for DataFrames
+                df = format_timestamps(df)
+                st.dataframe(df)
             else:
                 st.info("No active subscribers found")    
     with btn2:
-        if st.button("Inactive Subscribers"):
+        if st.button("Inactive"):
             users = dbm.get_subscribers(state='inactive')
             if users:
                 df = pd.DataFrame(users, columns=users[0].keys())
-                for col in ['created_at', 'updated_at']:
-                    if col in df.columns:
-                        df[col] = df[col].astype(str)
+                df = format_timestamps(df)
                 st.dataframe(df)
             else:
                 st.info("No inactive subscribers found")
+    with btn3:
+        if st.button("Pending"):
+            users = dbm.get_subscribers(state='pending')
+            if users:
+                df = pd.DataFrame(users, columns=users[0].keys())
+                df = format_timestamps(df)
+                st.dataframe(df)
+            else:
+                st.info("No subscribers found")     
     
-    # --- query a specific user --- from here
+    # --- update a specific user --- from here
     st.markdown(
     """
     ---
     """
     )
     email = st.text_input(':blue[Email:]', 
-                    placeholder='Enter email to subscribe')
+                    placeholder='Enter email to Update')
     email = email.strip()
-    btn3, btn4 = st.columns([5,5])
+    btn4, btn5, btn6 = st.columns([5,5,5])
     
-    with btn3:
+    with btn4:
         if st.button("Subscribe"):
             if not validate_email(email):
                 st.warning("Please enter a valid email address")
@@ -81,12 +93,21 @@ try:
                 dbm.add_subscriber(email, "token")  
                 st.info("Subscribed successfully")
     
-    with btn4:
+    with btn5:
         if st.button("Unsubscribe"):
             if not validate_email(email):
                 st.warning("Please enter a valid email address")
             else:
                 dbm.remove_subscriber(email)  
                 st.info("Unsubscribed successfully")
+    
+    with btn6:
+        if st.button("Delete"):
+            if not validate_email(email):
+                st.warning("Please enter a valid email address")
+            else:
+                dbm.delete_user(email)  
+                st.info("Deleted successfully") 
+
 except Exception as err:
     st.error(f"Caught '{err}'. class is {type(err)}")

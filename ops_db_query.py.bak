@@ -47,32 +47,38 @@ btn1, btn2, btn3 = st.columns([5,5,3])
 
 try:
     with btn1:
-        if st.button("Active"):
+        if st.button("Active Subscribers"):
             users = dbm.get_subscribers(state='active')
             if users:
+                # Create DataFrame with explicit dtype for each column
                 df = pd.DataFrame(users, columns=users[0].keys())
+                # Convert timestamp columns to local time
                 df = format_timestamps(df)
-                st.dataframe(df)
+                st.dataframe(df)  # Use st.dataframe instead of st.write for DataFrames
             else:
                 st.info("No active subscribers found")    
     with btn3:
-        if st.button("Inactive"):
+        if st.button("Inactive Subscribers"):
             users = dbm.get_subscribers(state='inactive')
             if users:
                 df = pd.DataFrame(users, columns=users[0].keys())
-                df = format_timestamps(df)
+                for col in ['created_at', 'updated_at']:
+                    if col in df.columns:
+                        df[col] = df[col].astype(str)
                 st.dataframe(df)
             else:
                 st.info("No inactive subscribers found")
     with btn2:
-        if st.button("Pending"):
-            users = dbm.get_subscribers(state='pending')
+        if st.button("All Subscribers"):
+            users = dbm.get_subscribers(state='all')
             if users:
                 df = pd.DataFrame(users, columns=users[0].keys())
-                df = format_timestamps(df)
+                for col in ['created_at', 'updated_at']:
+                    if col in df.columns:
+                        df[col] = df[col].astype(str)
                 st.dataframe(df)
             else:
-                st.info("No pending subscribers found")
+                st.info("No subscribers found")
                 
     # --- query a specific user --- from here
     st.markdown(
