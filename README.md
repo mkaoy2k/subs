@@ -1,18 +1,16 @@
-# Journal - FamilyTrees Web App
-
-> Subscription journal system for FamilyTrees service
+# subs - journal subscription service on FamilyTrees platform
 
 ## Introduction
 
 ---
 
-The 'Journal' Web App is a web application that allows you to read and subscribe/unsubscribe to your journal.
+The 'subs' Web App is a web service that allows you to read news and to subscribe/unsubscribe to your family news.
 
 ## How It Works
 
 ---
 
-The 'Journal' service helps you keep updated with what's new to your family-related matters. You can subscribe/unsubscribe to your journal as needed.
+The 'subs' service provides a front-end for family members to keep in the loop on what's new to your family-related matters. At the backend for FamilyTrees service team to maintain the publication of faamily matters whereas the family members can subscribe/unsubscribe to the family news as needed.
 
 ### Key Features:
 
@@ -21,7 +19,7 @@ The 'Journal' service helps you keep updated with what's new to your family-rela
    - Email verification
    - Password reset functionality
 
-2. **Subscription Management**
+2. **Publication Management**
    - Manage user subscriptions
    - Track subscription status
    - Handle subscription updates
@@ -37,74 +35,51 @@ The 'Journal' service helps you keep updated with what's new to your family-rela
 To install and run the application:
 
 1. Clone the repository:
+
    ```bash
    git clone https://github.com/mkaoy2k/subs.git
    cd subs
    ```
 
 2. Install dependencies:
+
    ```bash
    pip install -r requirements.txt
    ```
 
 3. Configure environment variables in `.env`:
-   ```
-# --- Endpoints for Servers --- from here 
-
-# Database Server
-DB_SVR="sqlite3"
-
-# Operations Server
-OPS_SVR=your Journal server URL
-
-# FamilyTrees Server
-FT_SVR=your FamilyTrees server URL
-
-# FamilyTrees GitHub Repository
-GIT_SVR="https://github.com/mkaoy2k/ftpe.git"
-
-# --- Configurations for DB Server --- from here
-
-# sqlite3 configurations
-DB_NAME="data/users.db"
-TBL_NAME="users"
-
-# --- Configurations for Gmail service --- from here
-
-# The following parms are used by: funcUtils.py
-MAIL_SERVER=smtp.gmail.com
-MAIL_USERNAME=your email
-MAIL_PASSWORD=your password
-MAIL_DEFAULT_SENDER=your email
-
-# App Configuration
-APP_NAME=FamilyTrees Journal
-SECRET_KEY=your-secret-key
-BASE_URL=your journal URL
-
-# --- Server Settings --- from here
-
-# logging level
-# LOGGING="DEBUG"
-LOGGING="INFO"
-
-# Language Options
-L10N_FILE="L10N.json"
-L10N="繁中"
-# L10N="US"
-
-# Menu Options
-OPS_MENU_FILE="ops_menu.json"
-
+   
+   ```bash
+   cp template.env.txt .env
    ```
 
 ## Usage
 
-### Running the Server
+### Running the subs server
 
-```bash
-python ops_svr.py
-```
+   ```bash
+   python ops_svr.py
+   ```
+
+### Running the ftpe server
+
+   ```bash
+   streamlit run ftpe_svr.py
+   ```
+
+### For FamilyTrees Team
+
+   ```bash
+   # publish the journal to subscribers
+   <your-subs-server-URL>/pub
+
+   # query subscribers
+   <your-subs-server-URL>/dbq
+
+   # update subscribers
+   <your-subs-server-URL>/dbu
+
+   ```
 
 ## License
 
