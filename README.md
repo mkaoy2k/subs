@@ -1,27 +1,27 @@
-# subs - FamilyTrees Web App
+# Journal - FamilyTrees Web App
 
-> Subscription management system for FamilyTrees service
+> Subscription journal system for FamilyTrees service
 
 ## Introduction
 
 ---
 
-The 'FamilyTrees' Web App is a Python application that allows you to record your family tree.
+The 'Journal' Web App is a web application that allows you to read and subscribe/unsubscribe to your journal.
 
 ## How It Works
 
 ---
 
-The 'Family Trees' service helps you build your family tree as your family grows. You can add, update, or share family information as needed.
+The 'Journal' service helps you keep updated with what's new to your family-related matters. You can subscribe/unsubscribe to your journal as needed.
 
 ### Key Features:
 
-1. **User Management**
+1. **Keep in the loop with your family Social Circle**
    - Secure login and registration
    - Email verification
    - Password reset functionality
 
-2. **Subscription System**
+2. **Subscription Management**
    - Manage user subscriptions
    - Track subscription status
    - Handle subscription updates
@@ -49,14 +49,53 @@ To install and run the application:
 
 3. Configure environment variables in `.env`:
    ```
-   # Database configuration
-   DB_SVR=sqlite3
-   DB_NAME=users.db
-   TBL_NAME=users
-   
-   # Server settings
-   LOGGING=DEBUG
-   L10N=TW
+# --- Endpoints for Servers --- from here 
+
+# Database Server
+DB_SVR="sqlite3"
+
+# Operations Server
+OPS_SVR=your Journal server URL
+
+# FamilyTrees Server
+FT_SVR=your FamilyTrees server URL
+
+# FamilyTrees GitHub Repository
+GIT_SVR="https://github.com/mkaoy2k/ftpe.git"
+
+# --- Configurations for DB Server --- from here
+
+# sqlite3 configurations
+DB_NAME="data/users.db"
+TBL_NAME="users"
+
+# --- Configurations for Gmail service --- from here
+
+# The following parms are used by: funcUtils.py
+MAIL_SERVER=smtp.gmail.com
+MAIL_USERNAME=your email
+MAIL_PASSWORD=your password
+MAIL_DEFAULT_SENDER=your email
+
+# App Configuration
+APP_NAME=FamilyTrees Journal
+SECRET_KEY=your-secret-key
+BASE_URL=your journal URL
+
+# --- Server Settings --- from here
+
+# logging level
+# LOGGING="DEBUG"
+LOGGING="INFO"
+
+# Language Options
+L10N_FILE="L10N.json"
+L10N="繁中"
+# L10N="US"
+
+# Menu Options
+OPS_MENU_FILE="ops_menu.json"
+
    ```
 
 ## Usage
@@ -65,13 +104,6 @@ To install and run the application:
 
 ```bash
 python ops_svr.py
-```
-
-### Managing Subscriptions
-
-To update a user's subscription:
-```bash
-python ops_activate.py user@example.com PREMIUM
 ```
 
 ## License

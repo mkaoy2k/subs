@@ -141,7 +141,10 @@ def init_globals():
         
         # 初始化關於頁面
         l_about = {
-            'abs': "".join(l_loc['ABOUT_HTML_ABS'])
+            'abs1': "".join(l_loc['ABOUT_HTML_ABS1']),
+            'abs2': "".join(l_loc['ABOUT_HTML_ABS2']),
+            'abs3': "".join(l_loc['ABOUT_HTML_ABS3']),
+            'abs4': "".join(l_loc['ABOUT_HTML_ABS4'])
         }
         l_page['about'] = l_about
         g_PAGE[key] = l_page
@@ -241,7 +244,10 @@ def about():
         options=g_L10N_options,
         header=g_loc['ABOUT_HTML_H1'],
         abs_header=g_loc['ABOUT_ABS_H2'],
-        abs=g_about['abs'],
+        abs1=g_about['abs1'],
+        abs2=g_about['abs2'],
+        abs3=g_about['abs3'],
+        abs4=g_about['abs4'],
         usage_header=g_loc['ABOUT_USAGE_H2'],
         git_url=git_svr,
         usage=git_svr,
@@ -499,7 +505,7 @@ def main():
     啟動 Flask 營運伺服器
     """
     log.info("啟動 FamilyTree 操作伺服器...")
-    app.run(debug=True, port=5555)
+    app.run(host='0.0.0.0', port=5555, use_reloader=False)
 
 if __name__ == "__main__":
     main()

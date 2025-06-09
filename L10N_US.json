@@ -25,35 +25,46 @@
     "HOME_HTML_T4_TEAM" : "The Kaos Team",
     "ABOUT_HTML_H1" : "About FamilyTrees App",
     "ABOUT_ABS_H2" : "Introduction",
-    "ABOUT_HTML_ABS" : [
+    "ABOUT_HTML_ABS1" : [
     "The FamilyTrees App is a web application that allows ",
     "you to manage your family tree as part of your family heritage, ",
-    "passing along to generations to come. You can add, update and ",
-    "query about your family tree, especially ",
-    "visualize how members are related each other ",
-    "in a graphic representation. When needed, you can download the ",
-    "graph to keep via email. Or even the entire family tree can ",
-    "be downloaded at will. ",
-    "And lastly but not least, the ",
-    "service is 100% FREE for the public."
+    "passing along to generations to come."
+    ],
+    "ABOUT_HTML_ABS2" : [
+    "The FamilyTrees App allows you to add, update your family members, and ",
+    "query about your family tree. Especially, it also enable you to ",
+    "visualize how members are related to each other in a graphic ",
+    "representation."
+    ],
+    "ABOUT_HTML_ABS3" : [
+    "When needed, you can download the entire family tree at will ",
+    "for sharing or merging with other family trees."
+    ],
+    "ABOUT_HTML_ABS4" : [
+    "And lastly but not least, the FamilyTrees App is open and 100% FREE ",
+    "to the public."
     ],
     "ABOUT_USAGE_H2" : "Download App Source Code",
     "FAQ_HTML_H1" : "Frequently Asked Questions",
-    "FAQ_OPS_DOWN_Q" : "Ops Server Down?",
+    "FAQ_OPS_DOWN_Q" : "Web Server not responding, is it Down?",
     "FAQ_OPS_DOWN" : [
-    "Please try again later."
+    "On the browser, you may see 'Web Server not responding', ",
+    "as shown in the screen shot above. ",
+    "Is it possible down? ",
+    "The answer might be so. Please try again later."
     ],
     "FAQ_DOWNLOAD_Q" : "How to Download my Family Data?",
     "FAQ_DOWNLOAD" : [
-    "Click the 'Download' button, ",
-    "the data will be downloaded as a CSV file with the name of your choice ",
+    "Click the 'Download' button, as shown in the screen shot above. ",
+    "The data will be downloaded as a CSV file with the name of your choice ",
     "(without .csv extension) in the 'Downloads' directory."
     ],
     "FAQ_TRY_DEMO" : "Try FamilyTrees App with a sample family!",
     "FAQ_CHARGE_Q" : "Any Cost using FamilyTrees?",
     "FAQ_CHARGE" : [
-    "Using FamilyTrees is 100% FREE.",
-    "Feel free to share this app to your friends and families. "
+    "Using FamilyTrees is 100% FREE. In fact, it is open source and ",
+    "available for download at GitHub. ",
+    "Feel free to share this app to your friends and families."
     ],
     "FAQ_DONATE_Q" : "How to Donate?",
     "FAQ_DONATE" : [
