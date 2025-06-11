@@ -1,5 +1,5 @@
 """
-資料庫更新介面 (Database Update Interface)
+訂閱者資料庫更新介面 (User Database Update Interface)
 
 此模組提供一個基於 Streamlit 的網頁介面，
 用於查詢和管理訂閱者資料庫。
@@ -18,7 +18,7 @@
 注意事項:
 1. 需先設定好環境變數 (.env 檔案)
 2. 需要安裝相關套件: streamlit, pandas
-3. 執行方式: streamlit run ops_db_update.py
+3. 執行方式: streamlit run ops_user_update.py
 """
 
 import streamlit as st

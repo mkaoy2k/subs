@@ -133,19 +133,28 @@ def send_newsletter(mail, emails, blob):
         # Render newsletter template
         html = render_template(
             'email/newsletter.html',
-            ft_url=blob['ft_url'],
-            title=blob['title'],
             header=blob['header'],
+            h2=blob['h2'],
+            motto=blob['motto'],
+            ft_url=blob['ft_url'],
             t1=blob['t1'],
-            t1_news=blob['t1_news'],
+            t1_title=blob['t1_title'],
+            t1_content=blob['t1_content'],
+            t1_image=blob['t1_image'],
+            t1_image_alt=blob['t1_image_alt'],
             t2=blob['t2'],
-            t2_motto=blob['t2_motto'],
+            t2_title=blob['t2_title'],
+            t2_content=blob['t2_content'],
+            t2_image=blob['t2_image'],
+            t2_image_alt=blob['t2_image_alt'],
             t3=blob['t3'],
-            t3_user=blob['t3_user'],
-            t3_download=blob['t3_download'],
+            t3_title=blob['t3_title'],
+            t3_content=blob['t3_content'],
+            t3_image=blob['t3_image'],
+            t3_image_alt=blob['t3_image_alt'],
             t4_greeting=blob['t4_greeting'],
             t4_team=blob['t4_team'],
-            l10n=blob['l10n']
+            title=blob['title'] 
         )
         log.debug("Successfully rendered newsletter template")
         

@@ -1,5 +1,5 @@
 """
-資料庫查詢介面 (Database Query Interface)
+訂閱者資料庫查詢介面 (User Database Query Interface)
 
 此模組提供一個基於 Streamlit 的網頁介面，
 用於查詢和管理訂閱者資料庫。
@@ -18,7 +18,7 @@
 注意事項:
 1. 需先設定好環境變數 (.env 檔案)
 2. 需要安裝相關套件: streamlit, pandas
-3. 執行方式: streamlit run ops_db_query.py
+3. 執行方式: streamlit run ops_user_query.py
 """
 
 import streamlit as st
@@ -47,38 +47,32 @@ btn1, btn2, btn3 = st.columns([5,5,3])
 
 try:
     with btn1:
-        if st.button("Active Subscribers"):
+        if st.button("Active"):
             users = dbm.get_subscribers(state='active')
             if users:
-                # Create DataFrame with explicit dtype for each column
                 df = pd.DataFrame(users, columns=users[0].keys())
-                # Convert timestamp columns to local time
                 df = format_timestamps(df)
-                st.dataframe(df)  # Use st.dataframe instead of st.write for DataFrames
+                st.dataframe(df)
             else:
                 st.info("No active subscribers found")    
     with btn3:
-        if st.button("Inactive Subscribers"):
+        if st.button("Inactive"):
             users = dbm.get_subscribers(state='inactive')
             if users:
                 df = pd.DataFrame(users, columns=users[0].keys())
-                for col in ['created_at', 'updated_at']:
-                    if col in df.columns:
-                        df[col] = df[col].astype(str)
+                df = format_timestamps(df)
                 st.dataframe(df)
             else:
                 st.info("No inactive subscribers found")
     with btn2:
-        if st.button("All Subscribers"):
-            users = dbm.get_subscribers(state='all')
+        if st.button("Pending"):
+            users = dbm.get_subscribers(state='pending')
             if users:
                 df = pd.DataFrame(users, columns=users[0].keys())
-                for col in ['created_at', 'updated_at']:
-                    if col in df.columns:
-                        df[col] = df[col].astype(str)
+                df = format_timestamps(df)
                 st.dataframe(df)
             else:
-                st.info("No subscribers found")
+                st.info("No pending subscribers found")
                 
     # --- query a specific user --- from here
     st.markdown(

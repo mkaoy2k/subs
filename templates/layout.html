@@ -52,9 +52,10 @@
           </div>
           <div class="col-md-4">
             <div class="content-section">
-              <h3>Settings</h3>
+              <!-- Settings from here -->
+              <h3> {{ settings }}</h3>
               <div class="mb-4">
-                <h5>Your Language</h5>
+                <h5> {{ your_language }}</h5>
                   <ul class="list-group">
                     {% for option in options %}
                       <li class="list-group-item list-group-item-light">
@@ -62,13 +63,13 @@
                     {% endfor %}
                   </ul>
                 <div class="mt-4">
-                  <h5>Email Subscription</h5>
+                  <h5> {{ email_subscription }}</h5>
                   <form action="{{ url_for('subscribe') }}" method="post">
                     <div class="form-group mb-2">
                       <input type="email" name="email" class="form-control mb-2" placeholder="Enter your email" required>
                       <div class="d-flex">
-                        <button type="submit" name="action" value="subscribe" class="btn btn-primary mr-2">Subscribe</button>
-                        <button type="submit" name="action" value="unsubscribe" class="btn btn-outline-secondary">Unsubscribe</button>
+                        <button type="submit" name="action" value={{ subscribe }} class="btn btn-primary mr-2">{{ subscribe }}</button>
+                        <button type="submit" name="action" value={{ unsubscribe }} class="btn btn-outline-secondary">{{ unsubscribe }}</button>
                       </div>
                     </div>
                   </form>

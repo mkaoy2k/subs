@@ -1,50 +1,43 @@
 {
-    "HOME_HTML_H1" : "FamilyTrees Blog",
-    "HOME_HTML_H2" : "The Kaos",
-    "HOME_HTML_T1" : "What's New?",
-    "HOME_HTML_T1_NEWS" : [
-        "After all, we're all from the same family. ",
-        "A man asked Buddha: \"I want happiness.\" ",
-        "Buddha said: ",
-        "First, to remove \"I\", that's ego. ",
-        "Then, to remove \"want\", that's desire. ",
-        "If you aren't selfish and aren't greedy, either, ",
-        "you won't worry too much about your personal interests. ",
-        "Then let's see now what you are left with: ",
-        "\"HAPPINESS\"!"
-        ],
-    "HOME_HTML_T2" : "Motto of the Day",
-    "HOME_HTML_T2_MOTTO" : [
-        "Women who are drunk open their mouths, ",
-        "whereas drunk men open their wallets."
-        ],
-    "HOME_HTML_T3" : "Python eBook",
-    "HOME_HTML_T3_USER" : "Good for folks who want to learn Python.",
-    "HOME_HTML_T3_DOWNLOAD" : "Download eBook",
+    "SETTINGS" : "Settings",
+    "YOUR_LANGUAGE" : "Your Language",
+    "SUBSCRIBE" : "Subscribe",
+    "UNSUBSCRIBE" : "Unsubscribe",
+    "EMAIL_SUBSCRIPTION" : "Email Subscription",
+    "HOME_HTML_H1" : "Owon Kaos Journal",
+    "HOME_HTML_H2" : "The Owon Kaos Family",
+    "HOME_HTML_MOTTO" : "After all, we are from the same African family.",
+    "HOME_HTML_T1" : "Spotlight",
+    "HOME_HTML_T2" : "Myth",
+    "HOME_HTML_T3" : "Bargain",
     "HOME_HTML_T4_GREETING" : "Best regards,",
     "HOME_HTML_T4_TEAM" : "The Kaos Team",
-    "ABOUT_HTML_H1" : "About FamilyTrees App",
+    "ABOUT_HTML_H1" : "About FamilyTrees",
     "ABOUT_ABS_H2" : "Introduction",
     "ABOUT_HTML_ABS1" : [
-    "The FamilyTrees App is a web application that allows ",
-    "you to manage your family tree as part of your family heritage, ",
-    "passing along to generations to come."
+    "The FamilyTrees provides a Service Platform that consists of ",
+    "multiple services to help you manage your family tree. ",
+    "As part of your precious heritage, ",
+    "a complete family tree can be passed along to future generations.",
+    "There are three web services under the FamilyTrees platform: "
     ],
     "ABOUT_HTML_ABS2" : [
-    "The FamilyTrees App allows you to add, update your family members, and ",
-    "query about your family tree. Especially, it also enable you to ",
-    "visualize how members are related to each other in a graphic ",
-    "representation."
+    "1. An on-line web service, called 'FamilyTrees'. ",
+    "It allows ISP provider/organization to build family trees ",
+    "over Internet on which all families can be inter-connected ",
+    "to each other. "
     ],
     "ABOUT_HTML_ABS3" : [
-    "When needed, you can download the entire family tree at will ",
-    "for sharing or merging with other family trees."
+    "2. A stand-alone web service, called 'ftpe'. ",
+    "This personal edition provides individuals to ",
+    "have his/her own family tree running locally."
     ],
     "ABOUT_HTML_ABS4" : [
-    "And lastly but not least, the FamilyTrees App is open and 100% FREE ",
-    "to the public."
+    "3. An on-line  web service, called 'subs'. ",
+    "This provides journal subscription service for a particular ",
+    "family members to receive updates about their family."
     ],
-    "ABOUT_USAGE_H2" : "Download App Source Code",
+    "ABOUT_USAGE_H2" : "Download Source Codes from GitHub",
     "FAQ_HTML_H1" : "Frequently Asked Questions",
     "FAQ_OPS_DOWN_Q" : "Web Server not responding, is it Down?",
     "FAQ_OPS_DOWN" : [

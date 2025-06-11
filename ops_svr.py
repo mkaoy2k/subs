@@ -21,7 +21,7 @@ from flask_mail import Mail
 import secrets
 import os
 from dotenv import load_dotenv
-from db_utils import add_subscriber, remove_subscriber, verify_token, get_subscribers
+from db_utils import add_subscriber, remove_subscriber, verify_token, get_subscribers, get_article
 from email_utils import validate_email, generate_verification_token, send_verification_email, send_newsletter
 from funcUtils import load_menu, load_L10N
 import subprocess
@@ -97,8 +97,10 @@ def init_globals():
     # 設定 FamilyTrees 伺服器端點
     ft_svr = os.getenv("FT_SVR", "https://crappie-on-kingfish.ngrok-free.app")
     log.debug(f"FamilyTrees Server: {ft_svr}")    
-    git_svr = os.getenv("GIT_SVR", "https://github.com/mkaoy2k/ftpe.git")
-    log.debug(f"GitHub Server: {git_svr}")
+    git_ftpe = os.getenv("GIT_FTPE", "https://github.com/mkaoy2k/ftpe.git")
+    log.debug(f"ftpe GitHub Server: {git_ftpe}")
+    git_subs = os.getenv("GIT_SUBS", "https://github.com/mkaoy2k/subs.git")
+    log.debug(f"subs GitHub Server: {git_subs}")
     
     # 載入多語言支援
     l10n_file = os.getenv("L10N_FILE")    
@@ -123,10 +125,26 @@ def init_globals():
         l_loc = g_L10N[loc]
         
         # 初始化 home page
-        l_home = {
-            't1_news': "".join(l_loc['HOME_HTML_T1_NEWS']),
-            't2_motto': "".join(l_loc['HOME_HTML_T2_MOTTO']),
-        }
+        cats = [l_loc['HOME_HTML_T1'], 
+                l_loc['HOME_HTML_T2'],
+                l_loc['HOME_HTML_T3']
+                ]
+        l_home = {}
+        for idx, cat in enumerate(cats, 1):
+            article = get_article(cat)
+            if article:
+                l_home[str(idx)] = {
+                    "title": article.get('title', ''),
+                    "content": article.get('content', ''),
+                    "image": article.get('image_url', '')
+                }
+            else:
+                l_home[str(idx)] = {
+                    "title": "",
+                    "content": "",
+                    "image": ""
+                }
+                log.debug(f"No article found in category: {cat}")
         l_page['home'] = l_home
         
         # 初始化常見問題頁面
@@ -155,11 +173,11 @@ def init_globals():
     g_faq = g_PAGE[key]['faq']
     g_about = g_PAGE[key]['about']
     
-    return (backend, ft_svr, git_svr, g_L10N, g_L10N_options,
+    return (backend, ft_svr, git_ftpe, git_subs, g_L10N, g_L10N_options,
             g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, g_home, g_faq, g_about)
 
 # 初始化全局變數
-(backend, ft_svr, git_svr, g_L10N, g_L10N_options,
+(backend, ft_svr, git_ftpe, git_subs, g_L10N, g_L10N_options,
  g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, 
  g_home, g_faq, g_about) = init_globals()
 
@@ -173,19 +191,40 @@ def home():
     """
     global g_loc, g_L10N_options, g_menu
 
+    t1_image = g_home['1']['image']
+    t1_image_alt = t1_image.split('/')[-1] if t1_image else ''
+    t2_image = g_home['2']['image']
+    t2_image_alt = t2_image.split('/')[-1] if t2_image else ''
+    t3_image = g_home['3']['image']
+    t3_image_alt = t3_image.split('/')[-1] if t3_image else ''
+    
     return render_template('home.html',
         menu=g_menu,
         options=g_L10N_options,
+        settings=g_loc['SETTINGS'],
+        your_language=g_loc['YOUR_LANGUAGE'],
+        subscribe=g_loc['SUBSCRIBE'],
+        unsubscribe=g_loc['UNSUBSCRIBE'],
+        email_subscription=g_loc['EMAIL_SUBSCRIPTION'],
         header=g_loc['HOME_HTML_H1'],
         h2=g_loc['HOME_HTML_H2'],
+        motto=g_loc['HOME_HTML_MOTTO'],
         ft_url=ft_svr,
         t1=g_loc['HOME_HTML_T1'],
-        t1_news=g_home['t1_news'],
+        t1_title=g_home['1']['title'],
+        t1_content=g_home['1']['content'],
+        t1_image=t1_image,
+        t1_image_alt=t1_image_alt,
         t2=g_loc['HOME_HTML_T2'],
-        t2_motto=g_home['t2_motto'],
+        t2_title=g_home['2']['title'],
+        t2_content=g_home['2']['content'],
+        t2_image=t2_image,
+        t2_image_alt=t2_image_alt,
         t3=g_loc['HOME_HTML_T3'],
-        t3_user=g_loc['HOME_HTML_T3_USER'],
-        t3_download=g_loc['HOME_HTML_T3_DOWNLOAD'],
+        t3_title=g_home['3']['title'],
+        t3_content=g_home['3']['content'],
+        t3_image=t3_image,
+        t3_image_alt=t3_image_alt,
         t4_greeting=g_loc['HOME_HTML_T4_GREETING'],
         t4_team=g_loc['HOME_HTML_T4_TEAM'],
         title='home')
@@ -237,7 +276,7 @@ def about():
     Returns:
         Response: About FamilyTree 主網站
     """
-    global g_loc, g_L10N_options, g_menu, g_about, git_svr
+    global g_loc, g_L10N_options, g_menu, g_about, git_ftpe, git_subs
     
     return render_template('About.html',
         menu=g_menu,
@@ -248,9 +287,9 @@ def about():
         abs2=g_about['abs2'],
         abs3=g_about['abs3'],
         abs4=g_about['abs4'],
-        usage_header=g_loc['ABOUT_USAGE_H2'],
-        git_url=git_svr,
-        usage=git_svr,
+        git_repo=g_loc['ABOUT_USAGE_H2'],
+        git_ftpe=git_ftpe,
+        git_subs=git_subs,
         title='about')
 
 @app.route("/setL10N")
@@ -323,7 +362,7 @@ def subscribe():
             # 生成驗證令牌
             token = generate_verification_token()
             # 發送驗證郵件
-            if send_verification_email(mail, email, token, is_subscribe=True, max_retries=3):
+            if send_verification_email(mail, email, token, is_subscribe=True):
                 flash('Please check your email to confirm your subscription.', 'info')
                 add_subscriber(email, token)
             else:
@@ -332,7 +371,7 @@ def subscribe():
             # 對於退訂，我們可以發送驗證郵件或直接退訂
             # 為了安全起見，我們在這裡發送驗證郵件
             token = generate_verification_token()
-            if send_verification_email(mail, email, token, is_subscribe=False, max_retries=3):
+            if send_verification_email(mail, email, token, is_subscribe=False):
                 flash('Please check your email to confirm unsubscription.', 'info')
             else:
                 flash('Failed to send verification email. Please try again later.', 'danger')
@@ -466,36 +505,54 @@ def pub_newsletter():
     global g_loc, g_home, g_loc_key
     
     users = get_subscribers(state='active')
-    emails = []
-    if users is not None:
-        for user in users:
-            emails.append(user['email'])
-    
-    if emails is not None:
-        # create blob dictionary
-        blob = {
-            'ft_url': ft_svr,
-            'title': g_loc['HOME_HTML_H1'],
-            'header': g_loc['HOME_HTML_H2'],
-            't1': g_loc['HOME_HTML_T1'],
-            't1_news': g_home['t1_news'],
-            't2': g_loc['HOME_HTML_T2'],
-            't2_motto': g_home['t2_motto'],
-            't3': g_loc['HOME_HTML_T3'],
-            't3_user': g_loc['HOME_HTML_T3_USER'],
-            't3_download': g_loc['HOME_HTML_T3_DOWNLOAD'],
-            't4_greeting': g_loc['HOME_HTML_T4_GREETING'],
-            't4_team': g_loc['HOME_HTML_T4_TEAM'],
-            'l10n': g_loc_key
-        }
-        try:
-            send_newsletter(mail, emails, blob)
+    if not users:  # Handles both None and empty list
+        flash('No active subscribers found', 'warning')
+        return redirect(url_for('home'))
+        
+    emails = [user['email'] for user in users if user and 'email' in user]
+    if not emails:  # In case all users in the list are invalid or missing email
+        flash('No valid email addresses found', 'warning')
+        return redirect(url_for('home'))
+
+    t1_image = g_home['1']['image']
+    t1_image_alt = t1_image.split('/')[-1] if t1_image else ''
+    t2_image = g_home['2']['image']
+    t2_image_alt = t2_image.split('/')[-1] if t2_image else ''
+    t3_image = g_home['3']['image']
+    t3_image_alt = t3_image.split('/')[-1] if t3_image else ''
+        
+    # create blob dictionary
+    blob = {
+        'header': g_loc['HOME_HTML_H1'],
+        'h2': g_loc['HOME_HTML_H2'],
+        'motto': g_loc['HOME_HTML_MOTTO'],
+        'ft_url': ft_svr,
+        't1': g_loc['HOME_HTML_T1'],
+        't1_title': g_home['1']['title'],
+        't1_content': g_home['1']['content'],
+        't1_image': t1_image,
+        't1_image_alt': t1_image_alt,
+        't2': g_loc['HOME_HTML_T2'],
+        't2_title': g_home['2']['title'],
+        't2_content': g_home['2']['content'],
+        't2_image': t2_image,
+        't2_image_alt': t2_image_alt,
+        't3': g_loc['HOME_HTML_T3'],
+        't3_title': g_home['3']['title'],
+        't3_content': g_home['3']['content'],
+        't3_image': t3_image,
+        't3_image_alt': t3_image_alt,
+        't4_greeting': g_loc['HOME_HTML_T4_GREETING'],
+        't4_team': g_loc['HOME_HTML_T4_TEAM'],
+        'title': 'newsletter'
+    }
+    try:
+        if send_newsletter(mail, emails, blob):
             flash('Newsletter sent successfully', 'success')
-        except Exception as e:
+        else:
             flash('Newsletter sent failed', 'danger')
-    else:
-        flash('No subscribers found', 'warning')
-    
+    except Exception as e:
+        flash('Newsletter sent failed', 'danger')
     return redirect(url_for('home'))    
 
 def main():
@@ -505,7 +562,8 @@ def main():
     啟動 Flask 營運伺服器
     """
     log.info("啟動 FamilyTree 操作伺服器...")
-    app.run(host='0.0.0.0', port=5555, use_reloader=False)
+    # app.run(host='0.0.0.0', port=5555, use_reloader=False)
+    app.run(port=5555, debug=True, use_reloader=True)
 
 if __name__ == "__main__":
     main()

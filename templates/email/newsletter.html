@@ -7,6 +7,7 @@
     <style>
         body {
             font-family: Arial, sans-serif;
+            font-size: 16px;
             line-height: 1.6;
             color: #333;
             max-width: 600px;
@@ -30,34 +31,65 @@
             text-decoration: none;
             border-radius: 4px;
         }
+        .footer {
+            margin-top: 30px;
+            font-size: 12px;
+            color: #666;
+        }
     </style>
 </head>
 <body>
-    <a href="{{ ft_url }}" target="_blank" rel="noopener noreferrer">
     <h1>{{ header }}</h1>
-    </a>
-    
-    <h2>{{ t1 }}</h2>
     <p>
-        {{ t1_news }}
+        <a href="{{ ft_url }}" class="button" target="_blank" rel="noopener noreferrer"
+        >{{ h2 }}</a>
     </p>
-    <h2>{{ t2 }}</h2>
-    <p>
-        {{ t2_motto }}
-    </p>
-    <h2>{{ t3 }}</h2>
-    <p>{{ t3_user }}</p>
-    <p><a href="https://github.com/mkaoy2k/Kids-Lets-Play-Python/blob/main/2.0%20小朋友玩大蟒蛇.pdf">{{ t3_download }}</a></p>
+    <div class="content-block">
+        {{ motto|safe }}
+    </div>
     
-    <p><img src="https://github.com/mkaoy2k/Kids-Lets-Play-Python/blob/main/QRCode.png?raw=true" alt="e-book download" width="150" height="150">
-    </p>
+    <!-- News -->
+    <h2 style="color: red;">{{ t1 }}</h2>
+    <h4 style="color: blue;">{{ t1_title }}</h4>
+    <div class="content-block">
+        {{ t1_content|safe }}
+        {% if t1_image %}
+        <p>
+            <img src="{{ t1_image }}" alt="{{ t1_image_alt }}" style="max-width: 100%; height: auto; margin: 10px 0;">
+        </p>
+        {% endif %}
+    </div>
+    <br>
     
-    <p>
-        <a href="{{ ft_url }}" target="_blank" rel="noopener noreferrer" class="button">
-            {{ header }}
-        </a>
-    </p>
+    <!-- Motto -->
+    <h2 style="color: red;">{{ t2 }}</h2>
+    <h4 style="color: blue;">{{ t2_title }}</h4>
+    <div class="content-block">
+        {{ t2_content|safe }}
+        {% if t2_image %}
+        <p>
+            <img src="{{ t2_image }}" alt="{{ t2_image_alt }}" style="max-width: 100%; height: auto; margin: 10px 0;">
+        </p>
+        {% endif %}
+    </div>
+    <br>
     
-    <p>{{ t4_greeting }},<br>{{ t4_team }}</p>
+    <!-- Python eBook -->
+    <h2 style="color: red;">{{ t3 }}</h2>
+    <h4 style="color: blue;"> {{ t3_title }}   </h4>
+    <div class="content-block">
+        {{ t3_content|safe }}
+        {% if t3_image %}
+        <p>
+            <img src="{{ t3_image }}" alt="{{ t3_image_alt }}" style="max-width: 100%; height: auto; margin: 10px 0;">
+        </p>
+        {% endif %}
+    </div>
+    
+    <div class="footer">
+        <p>{{ t4_greeting }},<br>
+            {{ t4_team }}
+        </p>
+    </div>
 </body>
 </html>

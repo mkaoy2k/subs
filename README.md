@@ -12,7 +12,7 @@ The 'subs' Web App is a web service that allows you to read news and to subscrib
 
 The 'subs' service provides a front-end for family members to keep in the loop on what's new to your family-related matters. At the backend for FamilyTrees service team to maintain the publication of faamily matters whereas the family members can subscribe/unsubscribe to the family news as needed.
 
-### Key Features:
+### Key Features
 
 1. **Keep in the loop with your family Social Circle**
    - Secure login and registration
@@ -32,7 +32,7 @@ The 'subs' service provides a front-end for family members to keep in the loop o
 
 ---
 
-To install and run the application:
+To install prior to running the application:
 
 1. Clone the repository:
 
@@ -48,10 +48,14 @@ To install and run the application:
    ```
 
 3. Configure environment variables in `.env`:
-   
+
    ```bash
    cp template.env.txt .env
    ```
+
+   - Update the environment variables in `.env` file accordingly.
+
+4. Create a subdirectory, named `data` in the root directory of the project.
 
 ## Usage
 
@@ -73,11 +77,21 @@ To install and run the application:
    # publish the journal to subscribers
    <your-subs-server-URL>/pub
 
-   # query subscribers
+   # query subscribers 
+   # 1. from front-end browser
    <your-subs-server-URL>/dbq
+   # 2. from back-end browser
+   python ops_user_query.py
 
    # update subscribers
+   # 1. from front-end browser
    <your-subs-server-URL>/dbu
+   # 2. from back-end browser
+   python ops_user_update.py
+
+   # Insert/update/delete articles
+   # from back-end browser
+   python ops_article.py
 
    ```
 

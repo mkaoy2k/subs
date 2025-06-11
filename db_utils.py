@@ -10,7 +10,8 @@
 
 環境變數需求:
 - DB_NAME: 資料庫檔案名稱
-- TBL_NAME: 資料表名稱
+- TBL_USR: 資料表 User 名稱
+- TBL_ARTICLE: 資料表 Article 名稱
 - LOGGING: 日誌記錄層級 (DEBUG/INFO/WARNING/ERROR/CRITICAL)
 
 主要功能:
@@ -34,12 +35,14 @@ log = logging.getLogger(__name__)
 log_level = os.getenv('LOGGING', 'WARNING').upper()
 log.setLevel(getattr(logging, log_level, logging.WARNING))
 
-dbn = os.getenv("DB_NAME")
-user_tbl = os.getenv("TBL_NAME")
+dbn = os.getenv("DB_NAME", "data/users.db")
+user_tbl = os.getenv("TBL_USR", "user")
+article_tbl = os.getenv("TBL_ARTICLE", "article")
 States = {
     'active': 1, 
     'pending': 0,
-    'inactive': -1}
+    'inactive': -1
+    }
 
 def get_db_connection():
     """Create and return a database connection"""
@@ -50,7 +53,7 @@ def get_db_connection():
 def init_db():
     """Initialize the database with required tables"""
     with get_db_connection() as conn:
-        # create a table via SQL
+        # create user table via SQL
         cmd = f"CREATE TABLE IF NOT EXISTS {user_tbl}"
         args = """ (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -59,6 +62,25 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             token TEXT
+        )"""
+        sql_stmt = f"{cmd} {args}"
+        conn.execute(sql_stmt)
+        conn.commit()
+        
+        # create article table via SQL
+        cmd = f"CREATE TABLE IF NOT EXISTS {article_tbl}"
+        args = """ (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            content TEXT NOT NULL,
+            category TEXT NOT NULL,
+            author TEXT,
+            source TEXT,
+            src_url TEXT,
+            image_url TEXT,
+            l10n TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )"""
         sql_stmt = f"{cmd} {args}"
         conn.execute(sql_stmt)
@@ -202,6 +224,50 @@ def delete_user(email):
             log.debug(f"{sql_stmt}")
         except Exception as err:
             log.error(f"Caught '{err}'. class is {type(err)}")
+
+def get_article(category):
+    """
+    根據分類取得最新的文章
+    
+    參數:
+        category (str): 文章分類
+        
+    回傳:
+        dict or None: 包含文章資訊的字典，若無則返回 None。
+                     字典包含以下鍵值：
+                     - id: 文章ID
+                     - title: 文章標題
+                     - content: 文章內容
+                     - category: 文章分類
+                     - author: 作者
+                     - source: 來源
+                     - src_url: 來源網址
+                     - image_url: 圖片網址
+                     - l10n: 語系
+                     - created_at: 建立時間
+                     - updated_at: 更新時間
+    """
+    if not category:
+        log.warning("No category provided to get_article")
+        return None
+        
+    with get_db_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(f"""
+            SELECT * FROM {article_tbl} 
+            WHERE category = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (category,))
+        
+        result = cursor.fetchone()
+        if result:
+            article = dict(result)
+            log.debug(f"Found article in category '{category}': {article['title']}")
+            return article
+            
+    log.debug(f"No article found in category: {category}")
+    return None
 
 # Initialize the database when this module is imported
 init_db()
