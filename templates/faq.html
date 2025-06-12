@@ -5,42 +5,33 @@
 <article class="media content-section">
   <img
     class="rounded-circle article-img"
-    src="{{ url_for('static', filename='ScreenShot_ops_down.png') }}"
+    src="{{ authors[0] }}"
   />
   <div class="media-body">
     <h3 class="article-title">{{ faq_ops_down_q }}</h3>
+    <p class="article-content">{{ answers[0]|safe }}</p>
     <img 
-      src="{{ url_for('static', filename='ScreenShot_ops_down.png') }}" 
+      src="{{ images[0] }}" 
       alt="Ops Server Down Screenshot"
       style="max-width: 100%; height: auto; margin: 10px 0;"
     >
-    <br>
-    <p class="article-content">
-      {{ faq_ops_down }}
-    </p>
-  </div>
+      </div>
 </article>
 
 <!-- download my family data -->
 <article class="media content-section">
   <img
     class="rounded-circle article-img"
-    src="{{ url_for('static', filename='ScreenShot_Settings.png') }}"
+    src="{{ authors[1] }}"
   />
   <div class="media-body">
     <h3 class="article-title">{{ faq_download_q }}</h3>
+    <p class="article-content">{{ answers[1]|safe }}</p>    
     <img 
-      src="{{ url_for('static', filename='ScreenShot_Settings.png') }}" 
-      alt="Settings Screenshot"
-      style="max-width: 100%; height: auto; margin: 10px 0;"
-    >
-    <br>
-    <p class="article-content">
-    {{ faq_download }}
-    </p>    
-    <p class="article-note">
-      <a href="{{ ft_url }}" target="_blank" rel="noopener noreferrer">{{ faq_try_demo }}</a>
-    </p>
+    src="{{ images[1] }}" 
+    alt="Settings Screenshot"
+    style="max-width: 100%; height: auto; margin: 10px 0;"
+  >
   </div>
 </article>
 
@@ -48,12 +39,11 @@
 <article class="media content-section">
   <img
     class="rounded-circle article-img"
-    src="{{ url_for('static', 
-            filename='ScreenShot_charge.png')}}"
+    src="{{ authors[2] }}"
   />
   <div class="media-body">
     <h3 class="article-title">{{ faq_charge_q }}</h3>
-    <p class="article-content">{{ faq_charge }}</p>
+    <p class="article-content">{{ answers[2]|safe }}</p>
   </div>
 </article>
 
@@ -61,14 +51,11 @@
 <article class="media content-section">
   <img
     class="rounded-circle article-img"
-    src="{{ url_for('static', 
-      filename='ScreenShot_donate.png')}}"
+    src="{{ authors[3] }}"
   />
   <div class="media-body">
     <h3 class="article-title">{{ faq_donate_q }}</h3>
-    <p class="article-content">
-      <a href="https://www.buymeacoffee.com/jkbwvj5y4zl" target="_blank" rel="noopener noreferrer">{{ faq_donate }}</a>
-    </p>
+    <p class="article-content">{{ answers[3]|safe }}</p>
   </div>
 </article>
 
@@ -76,14 +63,11 @@
 <article class="media content-section">
   <img
     class="rounded-circle article-img"
-    src="{{ url_for('static', 
-      filename='mkao2019.jpeg')}}"
+    src="{{ authors[4] }}"
   />
   <div class="media-body">
     <h3 class="article-title">{{ faq_creator_q }}</h3>
-    <p class="article-content">
-      <a href="mailto:mkaoy2k@gmail.com" target="_blank" rel="noopener noreferrer">{{ faq_creator }}</a>
-    </p>
+    <p class="article-content">{{ answers[4]|safe }}</p>
   </div>
 </article>
 {% endblock content %}

@@ -21,7 +21,7 @@ from flask_mail import Mail
 import secrets
 import os
 from dotenv import load_dotenv
-from db_utils import add_subscriber, remove_subscriber, verify_token, get_subscribers, get_article
+from db_utils import add_subscriber, get_articles, remove_subscriber, verify_token, get_subscribers, get_articles_byDays
 from email_utils import validate_email, generate_verification_token, send_verification_email, send_newsletter
 from funcUtils import load_menu, load_L10N
 import subprocess
@@ -130,40 +130,36 @@ def init_globals():
                 l_loc['HOME_HTML_T3']
                 ]
         l_home = {}
-        for idx, cat in enumerate(cats, 1):
-            article = get_article(cat)
-            if article:
-                l_home[str(idx)] = {
-                    "title": article.get('title', ''),
-                    "content": article.get('content', ''),
-                    "image": article.get('image_url', '')
-                }
-            else:
-                l_home[str(idx)] = {
-                    "title": "",
-                    "content": "",
-                    "image": ""
-                }
-                log.debug(f"No article found in category: {cat}")
+        for cat in cats:
+            
+            # get articles from last 7 days
+            articles = get_articles_byDays(cat, byDays=7)
+            log.debug(f"Found {len(articles)} articles in category '{cat}' from last 7 days")
+            l_home[cat] = []
+            for article in articles:
+                l_home[cat].append(article)
         l_page['home'] = l_home
         
         # 初始化常見問題頁面
-        l_faq = {
-            'ops_down': "".join(l_loc['FAQ_OPS_DOWN']),
-            'download': "".join(l_loc['FAQ_DOWNLOAD']),
-            'charge': "".join(l_loc['FAQ_CHARGE']),
-            'donate': "".join(l_loc['FAQ_DONATE']),
-            'creator': "".join(l_loc['FAQ_CREATOR'])
-        }
+        l_faq = {}
+        
+        # get the latest 5 articles
+        articles = get_articles(l_loc['FAQ_HTML_H1'], limit=5)
+        
+        for article in articles:
+            l_faq[article['title']] = article
+            log.debug(f"Found FAQ article: {article['title']}")
         l_page['faq'] = l_faq
         
         # 初始化關於頁面
-        l_about = {
-            'abs1': "".join(l_loc['ABOUT_HTML_ABS1']),
-            'abs2': "".join(l_loc['ABOUT_HTML_ABS2']),
-            'abs3': "".join(l_loc['ABOUT_HTML_ABS3']),
-            'abs4': "".join(l_loc['ABOUT_HTML_ABS4'])
-        }
+        l_about = {}
+        
+        # get the latest 2 articles
+        articles = get_articles(l_loc['ABOUT_HTML_H1'], limit=2)
+        
+        for article in articles:
+            l_about[article['title']] = article
+            log.debug(f"Found About article: {article['title']}")
         l_page['about'] = l_about
         g_PAGE[key] = l_page
     
@@ -190,13 +186,20 @@ def home():
         str: 渲染後的首頁 HTML
     """
     global g_loc, g_L10N_options, g_menu
-
-    t1_image = g_home['1']['image']
-    t1_image_alt = t1_image.split('/')[-1] if t1_image else ''
-    t2_image = g_home['2']['image']
+    
+    t1 = g_loc['HOME_HTML_T1']
+    t2 = g_loc['HOME_HTML_T2']
+    t3 = g_loc['HOME_HTML_T3']
+    
+    # get the articles about t1 from the last 7 days
+    t1_articles = g_home[t1]
+    
+    # get the lastest article about t2
+    t2_image = g_home[t2][0]['image_url']
     t2_image_alt = t2_image.split('/')[-1] if t2_image else ''
-    t3_image = g_home['3']['image']
-    t3_image_alt = t3_image.split('/')[-1] if t3_image else ''
+    
+    # get the articles about t3 from the last 7 days
+    t3_article = g_home[t3]
     
     return render_template('home.html',
         menu=g_menu,
@@ -210,21 +213,15 @@ def home():
         h2=g_loc['HOME_HTML_H2'],
         motto=g_loc['HOME_HTML_MOTTO'],
         ft_url=ft_svr,
-        t1=g_loc['HOME_HTML_T1'],
-        t1_title=g_home['1']['title'],
-        t1_content=g_home['1']['content'],
-        t1_image=t1_image,
-        t1_image_alt=t1_image_alt,
-        t2=g_loc['HOME_HTML_T2'],
-        t2_title=g_home['2']['title'],
-        t2_content=g_home['2']['content'],
+        t1=t1,
+        t1_articles=t1_articles,
+        t2=t2,
+        t2_title=g_home[t2][0]['title'],
+        t2_content=g_home[t2][0]['content'],
         t2_image=t2_image,
         t2_image_alt=t2_image_alt,
-        t3=g_loc['HOME_HTML_T3'],
-        t3_title=g_home['3']['title'],
-        t3_content=g_home['3']['content'],
-        t3_image=t3_image,
-        t3_image_alt=t3_image_alt,
+        t3=t3,
+        t3_article=t3_article,
         t4_greeting=g_loc['HOME_HTML_T4_GREETING'],
         t4_team=g_loc['HOME_HTML_T4_TEAM'],
         title='home')
@@ -240,33 +237,74 @@ def faq():
     Returns:
         str: 渲染後的 FAQ 頁面 HTML 內容
         
-    全局變數:
+    全局變數：
         g_loc (dict): 當前語系的本地化字串
         g_L10N_options (list): 可用的語言選項
         g_menu (dict): 導航菜單項目
         g_faq (dict): 常見問題內容
         
-    模板文件:
+    模板文件：
         faq.html: 用於渲染 FAQ 頁面的模板
     """
     global g_loc, g_L10N_options, g_menu, g_faq, ft_svr
     
+    try:
+        questions = [g_loc['FAQ_Q1_H2'], 
+                 g_loc['FAQ_Q2_H2'], 
+                 g_loc['FAQ_Q3_H2'], 
+                 g_loc['FAQ_Q4_H2'], 
+                 g_loc['FAQ_Q5_H2']]
+    except KeyError as e:
+        log.error(f"KeyError: {str(e)}")
+        questions = []
+    q_len = len(questions)
+    
+    answers = []
+    authors = []
+    images = []
+    
+    for title in questions:
+        if title in g_faq:
+            answers.append(g_faq[title]['content'])
+            authors.append(g_faq[title].get('author', ''))
+            images.append(g_faq[title].get('src_url', ''))
+        else:
+            answers.append("")
+            authors.append("")
+            images.append("")
+    
+    # 確保至少有 q_len 個問答
+    while len(answers) < q_len:
+        answers.append("")
+    while len(authors) < q_len:
+        authors.append("")
+    while len(images) < q_len:
+        images.append("")
+
     return render_template('faq.html',
         menu=g_menu,
         options=g_L10N_options,
+        settings=g_loc['SETTINGS'],
+        your_language=g_loc['YOUR_LANGUAGE'],
+        lang=session.get('lang', 'US'),
+        subscribe=g_loc['SUBSCRIBE'],
+        unsubscribe=g_loc['UNSUBSCRIBE'],
+        email_subscription=g_loc['EMAIL_SUBSCRIPTION'],
         header=g_loc['FAQ_HTML_H1'],
-        faq_ops_down_q=g_loc['FAQ_OPS_DOWN_Q'],
-        faq_ops_down=g_faq['ops_down'],
-        faq_download_q=g_loc['FAQ_DOWNLOAD_Q'],
-        faq_download=g_faq['download'],
-        faq_try_demo=g_loc['FAQ_TRY_DEMO'],
+        # 問題1
+        faq_ops_down_q=g_loc['FAQ_Q1_H2'],
+        # 問題2
+        faq_download_q=g_loc['FAQ_Q2_H2'],
+        # 問題3
+        faq_charge_q=g_loc['FAQ_Q3_H2'],
+        # 問題4
+        faq_donate_q=g_loc['FAQ_Q4_H2'],
+        # 問題5
+        faq_creator_q=g_loc['FAQ_Q5_H2'],
+        answers=answers,
+        authors=authors,
+        images=images,
         ft_url=ft_svr,
-        faq_charge_q=g_loc['FAQ_CHARGE_Q'],
-        faq_charge=g_faq['charge'],
-        faq_donate_q=g_loc['FAQ_DONATE_Q'],
-        faq_donate=g_faq['donate'],
-        faq_creator_q=g_loc['FAQ_CREATOR_Q'],
-        faq_creator=g_faq['creator'],
         title='faq')
 
 @app.route("/about")
@@ -278,18 +316,40 @@ def about():
     """
     global g_loc, g_L10N_options, g_menu, g_about, git_ftpe, git_subs
     
+    try:
+        titles = [
+            g_loc['ABOUT_INTRODUCTION_H2'],
+            g_loc['ABOUT_REPOSITORY_H2']
+        ]
+    except KeyError as e:
+        log.error(f"KeyError: {str(e)}")
+        titles = []
+    t_len = len(titles)
+
+    body = []
+    for title in titles:
+        if title in g_about:
+            body.append(g_about[title]['content'])
+        else:
+            body.append("")
+    
+    # 確保至少有 t_len 個段落
+    while len(body) < t_len:
+        body.append("")
+    
     return render_template('About.html',
         menu=g_menu,
         options=g_L10N_options,
+        settings=g_loc['SETTINGS'],
+        your_language=g_loc['YOUR_LANGUAGE'],
+        subscribe=g_loc['SUBSCRIBE'],
+        unsubscribe=g_loc['UNSUBSCRIBE'],
+        email_subscription=g_loc['EMAIL_SUBSCRIPTION'], 
         header=g_loc['ABOUT_HTML_H1'],
-        abs_header=g_loc['ABOUT_ABS_H2'],
-        abs1=g_about['abs1'],
-        abs2=g_about['abs2'],
-        abs3=g_about['abs3'],
-        abs4=g_about['abs4'],
-        git_repo=g_loc['ABOUT_USAGE_H2'],
+        introduction=g_loc['ABOUT_INTRODUCTION_H2'],
+        repository=g_loc['ABOUT_REPOSITORY_H2'],
+        body=body,
         git_ftpe=git_ftpe,
-        git_subs=git_subs,
         title='about')
 
 @app.route("/setL10N")
@@ -339,7 +399,7 @@ def set_l10n():
     except (KeyError, ValueError) as e:
         log.error(f"語言切換錯誤: {str(e)}")
         # 如果出現錯誤，重定向到首頁
-        return redirect(f"{ft_svr}")
+        return redirect(f"/home")
 
 
 @app.route('/subscribe', methods=['POST'])
@@ -413,12 +473,12 @@ def verify_email():
     
     return redirect(url_for('home'))
 
-# ---- Internal tools below ----
-@app.route('/dbq')
-def db_query():
-    """通過運行 ops_db_query.py 作為子進程執行數據庫查詢。
+# ---- Admin tools below ----
+@app.route('/usrq')
+def user_query():
+    """通過運行 ops_user_query.py 作為子進程執行數據庫查詢。
     
-    返回:
+    返回：
         Response: 包含查詢結果或錯誤訊息的 JSON 回應
     """
     import subprocess
@@ -455,11 +515,11 @@ def db_query():
         }), 'danger')
     return redirect(url_for('home'))
 
-@app.route('/dbu')
-def db_update():
-    """通過運行 ops_db_update.py 作為子進程執行數據庫更新。
+@app.route('/usru')
+def user_update():
+    """通過運行 ops_user_update.py 作為子進程執行數據庫更新。
     
-    返回:
+    返回：
         Response: 包含更新結果或錯誤訊息的 JSON 回應
     """
     import subprocess
@@ -469,7 +529,7 @@ def db_update():
     try:
         # 獲取當前腳本所在目錄
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        script_path = os.path.join(script_dir, 'ops_db_update.py')
+        script_path = os.path.join(script_dir, 'ops_user_update.py')
         
         # 運行腳本並不捕獲輸出
         subprocess.run(

@@ -1,20 +1,20 @@
-# subs - journal subscription service on FamilyTrees platform
+# subs - FamilyTrees newsletter subscription service on FamilyTrees platform
 
 ## Introduction
 
 ---
 
-The 'subs' Web App is a web service that allows you to read news and to subscribe/unsubscribe to your family news.
+The 'subs' Web App is a web service that allows you publish and subscribe/unsubscribe to your family news and events.
 
 ## How It Works
 
 ---
 
-The 'subs' service provides a front-end for family members to keep in the loop on what's new to your family-related matters. At the backend for FamilyTrees service team to maintain the publication of faamily matters whereas the family members can subscribe/unsubscribe to the family news as needed.
+The 'subs' service provides a front-end for family members to keep in the loop on what's new to your family-related matters. At the backend for your family newsletter team to maintain the publication of family matters whereas the family members can subscribe/unsubscribe to the family news as needed.
 
 ### Key Features
 
-1. **Keep in the loop with your family Social Circle**
+1. **Keep in the loop with your family social circle**
    - Secure login and registration
    - Email verification
    - Password reset functionality
@@ -22,7 +22,7 @@ The 'subs' service provides a front-end for family members to keep in the loop o
 2. **Publication Management**
    - Manage user subscriptions
    - Track subscription status
-   - Handle subscription updates
+   - Handle newsletter updates
 
 3. **Multi-language Support**
    - Currently supports Traditional Chinese (TW) and English (US)
@@ -79,13 +79,13 @@ To install prior to running the application:
 
    # query subscribers 
    # 1. from front-end browser
-   <your-subs-server-URL>/dbq
+   <your-subs-server-URL>/usrq
    # 2. from back-end browser
    python ops_user_query.py
 
    # update subscribers
    # 1. from front-end browser
-   <your-subs-server-URL>/dbu
+   <your-subs-server-URL>/usru
    # 2. from back-end browser
    python ops_user_update.py
 

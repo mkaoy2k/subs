@@ -2,17 +2,13 @@
 <h1 class="mb-3">{{ header }}</h1>
 
 <!-- about -->
-
+<br>
 <!-- introduction -->
-<h2 class="article-note">{{ abs_header }}</h2>
-<p>{{ abs1 }}</p><br>
-<p>{{ abs2 }}</p><br>
-<p>{{ abs3 }}</p><br>
-<p>{{ abs4 }}</p>
+<h3 class="article-note">{{ introduction }}</h3>
+<div class="content-block">{{ body[0]|safe }}</div><br>
 
 <!-- source codeis in GitHub -->
-<h2 class="article-note">{{ git_repo }}</h2>
-<p><a href="{{ git_ftpe }}" target="_blank" rel="noopener noreferrer">{{ git_ftpe }}</a></p>
-<p><a href="{{ git_subs }}" target="_blank" rel="noopener noreferrer">{{ git_subs }}</a></p>
+<h3 class="article-note">{{ repository }}</h3>
+<div class="content-block">{{ body[1]|safe }}</div><br>
 
 {% endblock content %}

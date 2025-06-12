@@ -225,27 +225,28 @@ def delete_user(email):
         except Exception as err:
             log.error(f"Caught '{err}'. class is {type(err)}")
 
-def get_article(category):
+def get_articles(category, limit=1):
     """
     根據分類取得最新的文章
     
     參數:
         category (str): 文章分類
+        limit (int): 取得的文章數量
         
     回傳:
-        dict or None: 包含文章資訊的字典，若無則返回 None。
-                     字典包含以下鍵值：
-                     - id: 文章ID
-                     - title: 文章標題
-                     - content: 文章內容
-                     - category: 文章分類
-                     - author: 作者
-                     - source: 來源
-                     - src_url: 來源網址
-                     - image_url: 圖片網址
-                     - l10n: 語系
-                     - created_at: 建立時間
-                     - updated_at: 更新時間
+        list of 文章資訊的字典，若無則返回 None。
+        字典包含以下鍵值：
+        - id: 文章ID
+        - title: 文章標題
+        - content: 文章內容
+        - category: 文章分類
+        - author: 作者
+        - source: 來源
+        - src_url: 來源網址
+        - image_url: 圖片網址
+        - l10n: 語系
+        - created_at: 建立時間
+        - updated_at: 更新時間
     """
     if not category:
         log.warning("No category provided to get_article")
@@ -256,17 +257,75 @@ def get_article(category):
         cursor = conn.execute(f"""
             SELECT * FROM {article_tbl} 
             WHERE category = ?
-            ORDER BY created_at DESC
-            LIMIT 1
+            ORDER BY updated_at DESC
+            LIMIT {limit}
         """, (category,))
         
-        result = cursor.fetchone()
-        if result:
-            article = dict(result)
-            log.debug(f"Found article in category '{category}': {article['title']}")
-            return article
+        results = cursor.fetchall()
+        if results:
+            articles = []
+            for result in results:
+                article = dict(result)
+                log.debug(f"Found article in category '{category}': {article['id']}")
+                articles.append(article)
+            log.debug(f"Found articles in category '{category}': {articles}")
+            return articles
             
     log.debug(f"No article found in category: {category}")
+    return None
+
+def get_articles_byDays(category, byDays=7):
+    """
+    根據分類取得最近 N 天的文章
+    
+    參數:
+        category (str): 文章分類
+        byDays (int): 天數範圍，預設為 7 天
+        
+    回傳:
+        list of 文章資訊的字典，若無則返回 None。
+        字典包含以下鍵值：
+        - id: 文章ID
+        - title: 文章標題
+        - content: 文章內容
+        - category: 文章分類
+        - author: 作者
+        - source: 來源
+        - src_url: 來源網址
+        - image_url: 圖片網址
+        - l10n: 語系
+        - created_at: 建立時間
+        - updated_at: 更新時間
+    """
+    if not category:
+        log.warning("No category provided to get_articles_byDays")
+        return None
+        
+    # 計算 N 天前的日期
+    from datetime import datetime, timedelta
+    days_ago = datetime.now() - timedelta(days=byDays)
+    date_str = days_ago.strftime('%Y-%m-%d %H:%M:%S')
+    
+    with get_db_connection() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.execute(f"""
+            SELECT * FROM {article_tbl} 
+            WHERE category = ? 
+            AND updated_at >= ?
+            ORDER BY updated_at DESC
+        """, (category, date_str))
+        
+        results = cursor.fetchall()
+        if results:
+            articles = []
+            for result in results:
+                article = dict(result)
+                log.debug(f"Found article in category '{category}' from last {byDays} days: {article['id']}")
+                articles.append(article)
+            log.debug(f"Found {len(articles)} articles in category '{category}' from last {byDays} days")
+            return articles
+            
+    log.debug(f"No articles found in category '{category}' from last {byDays} days")
     return None
 
 # Initialize the database when this module is imported

@@ -42,7 +42,8 @@ import db_utils as dbm
 
 from PyQt5.QtWidgets import QApplication, QMainWindow, QTableView, QVBoxLayout, QWidget, QMessageBox, QPushButton, QHBoxLayout
 from PyQt5.QtSql import QSqlDatabase, QSqlTableModel, QSqlQuery
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QDateTime
+from PyQt5.QtGui import QFont
 
 
 class DatabaseViewer(QMainWindow):
@@ -115,9 +116,23 @@ class DatabaseViewer(QMainWindow):
     
     def on_data_changed(self, top_left, bottom_right, roles=None):
         """
-        當資料變更時啟用儲存按鈕
+        當資料變更時啟用儲存按鈕並更新 updated_at 欄位
         """
+        # 檢查是否是 updated_at 欄位的變更，避免無限遞迴
+        if top_left.column() == self.model.fieldIndex('updated_at'):
+            return
+            
+        # 啟用儲存按鈕
         self.save_button.setEnabled(True)
+        
+        # 獲取當前時間
+        current_time = QDateTime.currentDateTime().toString("yyyy-MM-dd HH:mm:ss")
+        
+        # 更新 updated_at 欄位，並阻止觸發 dataChanged 信號
+        self.model.blockSignals(True)  # 暫時阻斷信號
+        index = self.model.index(top_left.row(), self.model.fieldIndex('updated_at'))
+        self.model.setData(index, current_time)
+        self.model.blockSignals(False)  # 恢復信號發送
     
     def insert_record(self):
         """
@@ -266,6 +281,7 @@ class DatabaseViewer(QMainWindow):
     def _verify_data_persistence(self):
         """
         驗證資料是否已正確寫入資料庫
+        使用現有的資料庫連接進行驗證，避免創建新的連接
         """
         print("\n=== 開始驗證資料持久性 ===")
         
@@ -274,21 +290,17 @@ class DatabaseViewer(QMainWindow):
         print(f"資料庫檔案: {os.path.abspath(db_path)}")
         print(f"檔案大小: {os.path.getsize(db_path) if os.path.exists(db_path) else '檔案不存在'} 位元組")
         
-        # 建立新的資料庫連接進行驗證
-        test_db = QSqlDatabase.addDatabase("QSQLITE", "verification_connection")
-        test_db.setDatabaseName(db_path)
-        
-        if not test_db.open():
-            print(f"無法開啟資料庫進行驗證: {test_db.lastError().text()}")
-            return
-            
         try:
-            # 建立查詢
-            query = QSqlQuery(test_db)
+            # 使用主連接開始事務
+            self.db.transaction()
+            
+            # 使用主連接執行查詢
+            query = QSqlQuery(self.db)
             if not query.exec_("SELECT COUNT(*) as count FROM article"):
                 print(f"查詢記錄數失敗: {query.lastError().text()}")
+                self.db.rollback()
                 return
-                
+                    
             if query.next():
                 count = query.value(0)
                 print(f"資料庫中的記錄數: {count}")
@@ -300,9 +312,12 @@ class DatabaseViewer(QMainWindow):
                 if count != model_count:
                     print("警告: 模型與資料庫中的記錄數不一致！")
                     
+                    # 清理現有查詢
+                    query.finish()
+                    
                     # 嘗試從資料庫讀取所有記錄
                     if query.exec_("SELECT id, title FROM article"):
-                        print("\n資料庫中的記錄:")
+                        print("\n資料庫中的記錄:") 
                         while query.next():
                             print(f"ID: {query.value(0)}, 標題: {query.value(1)}")
                     else:
@@ -310,11 +325,17 @@ class DatabaseViewer(QMainWindow):
                 else:
                     print("驗證通過: 模型與資料庫中的記錄數一致")
             
+            # 提交事務
+            self.db.commit()
+            
         except Exception as e:
             print(f"驗證過程中發生錯誤: {str(e)}")
+            if self.db.isOpen():
+                self.db.rollback()
         finally:
-            test_db.close()
-            QSqlDatabase.removeDatabase("verification_connection")
+            # 確保查詢物件被正確清理
+            if 'query' in locals() and query is not None:
+                query.finish()
     
     def _init_database(self, database_path, table_name):
         """
