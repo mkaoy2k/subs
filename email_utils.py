@@ -9,9 +9,6 @@ from dotenv import load_dotenv
 import socket
 import logging
 
-# Load environment variables from specific config file
-load_dotenv('.env')
-
 # Configure logging
 log = logging.getLogger(__name__)
 # Set log level from environment variable or default to WARNING
@@ -122,57 +119,90 @@ def send_newsletter(mail, emails, blob):
     Args:
         mail: Flask-Mail instance
         email (list): Recipient's email addresses
-        blob (dict): Blob of data
+        blob (dict): Blob of data containing email content
     
     Returns:
         bool: True if email was sent successfully, False otherwise
     """
     log.info(f"Preparing to send newsletter to {emails}")
+    log.debug(f"Email blob keys: {list(blob.keys())}")
 
     try:
+        # Log article counts for debugging
+        if 't1_articles' in blob:
+            log.debug(f"Found {len(blob['t1_articles'])} articles in t1_articles")
+        if 't3_articles' in blob:
+            log.debug(f"Found {len(blob['t3_articles'])} articles in t3_articles")
+
         # Render newsletter template
-        html = render_template(
-            'email/newsletter.html',
-            header=blob['header'],
-            h2=blob['h2'],
-            motto=blob['motto'],
-            ft_url=blob['ft_url'],
-            t1=blob['t1'],
-            t1_title=blob['t1_title'],
-            t1_content=blob['t1_content'],
-            t1_image=blob['t1_image'],
-            t1_image_alt=blob['t1_image_alt'],
-            t2=blob['t2'],
-            t2_title=blob['t2_title'],
-            t2_content=blob['t2_content'],
-            t2_image=blob['t2_image'],
-            t2_image_alt=blob['t2_image_alt'],
-            t3=blob['t3'],
-            t3_title=blob['t3_title'],
-            t3_content=blob['t3_content'],
-            t3_image=blob['t3_image'],
-            t3_image_alt=blob['t3_image_alt'],
-            t4_greeting=blob['t4_greeting'],
-            t4_team=blob['t4_team'],
-            title=blob['title'] 
-        )
-        log.debug("Successfully rendered newsletter template")
+        log.debug("Rendering newsletter template...")
+        try:
+            html = render_template(
+                'email/newsletter.html',
+                header=blob.get('header', ''),
+                t1=blob.get('t1', ''),
+                t1_articles=blob.get('t1_articles', []),
+                t2=blob.get('t2', ''),
+                t2_title=blob.get('t2_title', ''),
+                t2_content=blob.get('t2_content', ''),
+                t2_image=blob.get('t2_image', ''),
+                t2_image_alt=blob.get('t2_image_alt', ''),
+                t3=blob.get('t3', ''),
+                t3_articles=blob.get('t3_articles', []),
+                ft_url=blob.get('ft_url', ''),
+                motto_btn=blob.get('motto_btn', ''),
+                motto=blob.get('motto', ''),
+                t4_greeting=blob.get('t4_greeting', ''),
+                t4_team=blob.get('t4_team', ''),
+                title=blob.get('title', 'Newsletter')
+            )
+            log.debug(f"Successfully rendered newsletter template. HTML length: {len(html)} characters")
+            log.debug(f"First 200 chars: {html[:200]}...")
+        except Exception as template_error:
+            log.error(f"Error rendering template: {str(template_error)}", exc_info=True)
+            raise
         
         # Configure newsletter message
-        msg = Message(
-            subject="The Kaos Newsletter",
-            recipients=emails,
-            html=html,
-            sender=Config.MAIL_DEFAULT_SENDER
-        )
-        log.debug(f"Prepared newsletter - From: {Config.MAIL_DEFAULT_SENDER}, To: {emails}")
-        
-        # Log SMTP configuration (without sensitive data)
-        log.debug(f"SMTP Server: {Config.MAIL_SERVER}:{Config.MAIL_PORT}")
-        log.debug(f"Using TLS: {Config.MAIL_USE_TLS}, Using SSL: {Config.MAIL_USE_SSL}")
-        
-        # Send the email using the helper function
-        return _send_mail(mail, msg)
+        try:
+            subject = blob.get('title', 'The Kaos Newsletter')
+            log.debug(f"Creating email with subject: {subject}")
+            
+            msg = Message(
+                subject=subject,
+                recipients=emails,
+                html=html,
+                sender=Config.MAIL_DEFAULT_SENDER
+            )
+            
+            log.debug(f"Prepared newsletter - From: {Config.MAIL_DEFAULT_SENDER}")
+            log.debug(f"Recipients: {', '.join(emails) if isinstance(emails, list) else emails}")
+            log.debug(f"Subject: {msg.subject}")
+            log.debug(f"Body length: {len(html)} characters")
+            
+            # Log SMTP configuration (without sensitive data)
+            log.debug(f"SMTP Server: {Config.MAIL_SERVER}:{Config.MAIL_PORT}")
+            log.debug(f"Using TLS: {Config.MAIL_USE_TLS}, Using SSL: {Config.MAIL_USE_SSL}")
+            log.debug(f"Mail server timeout: {Config.MAIL_TIMEOUT} seconds")
+            log.debug(f"Mail debug mode: {Config.MAIL_DEBUG}")
+            
+            # Log first 200 characters of HTML for verification
+            log.debug(f"HTML Preview: {html[:200]}...")
+            
+            log.info(f"Sending newsletter to {len(emails) if isinstance(emails, list) else 1} recipient(s)")
+            
+            # Send the email using the helper function
+            result = _send_mail(mail, msg)
+            
+            if result:
+                log.info("Newsletter sent successfully")
+            else:
+                log.warning("Failed to send newsletter after retries")
+                
+            return result
+            
+        except Exception as msg_error:
+            log.error(f"Error creating or sending message: {str(msg_error)}", exc_info=True)
+            raise
                 
     except Exception as e:
         log.error(f"Failed to prepare email: {str(e)}", exc_info=True)

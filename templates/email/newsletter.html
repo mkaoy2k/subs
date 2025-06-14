@@ -40,55 +40,64 @@
 </head>
 <body>
     <h1>{{ header }}</h1>
-    <p>
-        <a href="{{ ft_url }}" class="button" target="_blank" rel="noopener noreferrer"
-        >{{ h2 }}</a>
-    </p>
-    <div class="content-block">
-        {{ motto|safe }}
-    </div>
     
     <!-- News -->
     <h2 style="color: red;">{{ t1 }}</h2>
-    <h4 style="color: blue;">{{ t1_title }}</h4>
+    {% for article in t1_articles %}
+    <h4 style="color: blue;">{{ article['title'] }}</h4>
     <div class="content-block">
-        {{ t1_content|safe }}
-        {% if t1_image %}
+        <p>{{ article['author'] }} {{ article['source'] }}</p>
+        <p>{{ article['content']|safe }}</p>
+        {% if article['image_url'] %}
         <p>
-            <img src="{{ t1_image }}" alt="{{ t1_image_alt }}" style="max-width: 100%; height: auto; margin: 10px 0;">
+            <img src="{{ article['image_url'] }}" alt="{{ article['image_alt'] }}" style="max-width: 100%; height: auto; margin: 10px 0;">
         </p>
         {% endif %}
     </div>
     <br>
-    
+    {% endfor %}
+
     <!-- Motto -->
     <h2 style="color: red;">{{ t2 }}</h2>
     <h4 style="color: blue;">{{ t2_title }}</h4>
     <div class="content-block">
-        {{ t2_content|safe }}
+        <p>{{ t2_content|safe }}</p>
         {% if t2_image %}
         <p>
             <img src="{{ t2_image }}" alt="{{ t2_image_alt }}" style="max-width: 100%; height: auto; margin: 10px 0;">
         </p>
         {% endif %}
     </div>
-    <br>
-    
-    <!-- Python eBook -->
+<br>
+
+    <!-- Bargain -->
     <h2 style="color: red;">{{ t3 }}</h2>
-    <h4 style="color: blue;"> {{ t3_title }}   </h4>
+    {% for article in t3_articles %}
+    <h4 style="color: blue;">{{ article['title'] }}</h4>
     <div class="content-block">
-        {{ t3_content|safe }}
-        {% if t3_image %}
+        <p>{{ article['author'] }} {{ article['source'] }}</p>
+        <p>{{ article['content']|safe }}</p>
+        {% if article['image_url'] %}
         <p>
-            <img src="{{ t3_image }}" alt="{{ t3_image_alt }}" style="max-width: 100%; height: auto; margin: 10px 0;">
+            <img src="{{ article['image_url'] }}" alt="{{ article['image_alt'] }}" style="max-width: 100%; height: auto; margin: 10px 0;">
         </p>
         {% endif %}
     </div>
+    <br>
+    {% endfor %}
+    
+    <!-- Motto from here -->
+    <div class="text-center mb-3">
+        <a href="{{ ft_url }}" class="button" target="_blank" rel="noopener noreferrer"
+        >{{ motto_btn }}</a>
+        <div class="content-block">
+            {{ motto|safe }}
+        </div>
+    </div> 
     
     <div class="footer">
         <p>{{ t4_greeting }},<br>
-            {{ t4_team }}
+        {{ t4_team }}
         </p>
     </div>
 </body>

@@ -28,6 +28,22 @@ import subprocess
 from dotenv import load_dotenv  # 安裝: pip install python-dotenv
 import logging
 
+# 全局變數
+g_L10N = {}
+g_L10N_options = []
+g_loc_key = None
+g_loc = None
+g_MENU = {}
+g_menu = {}
+g_PAGE = {}
+g_home = {}
+g_faq = {}
+g_about = {}
+backend = None
+ft_svr = None
+git_ftpe = None
+git_subs = None
+
 # 載入環境變數
 load_dotenv(".env")
 
@@ -51,22 +67,21 @@ log.addHandler(console_handler)
 # 防止傳播到根日誌記錄器
 log.propagate = False
 
-# 配置 Flask 應用程序
+# 在 Flask 應用初始化後添加
 app = Flask(__name__)
-app.secret_key = os.getenv('SECRET_KEY', os.urandom(24))  # 會話管理所需
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-for-testing')  # 請在生產環境中設置安全的密鑰
 
 # 在 465 端口上配置帶有 SSL 的 Flask-Mail
 app.config.update(
-    # 基本設置
+    # 保持現有的郵件配置不變
     MAIL_SERVER=os.getenv('MAIL_SERVER', 'smtp.gmail.com'),
     MAIL_PORT=465,
     MAIL_USE_TLS=False,
     MAIL_USE_SSL=True,
     MAIL_USERNAME=os.getenv('MAIL_USERNAME'),
     MAIL_PASSWORD=os.getenv('MAIL_PASSWORD'),
-    MAIL_DEFAULT_SENDER=os.getenv('MAIL_DEFAULT_SENDER', 'noreply@familytree.com'),
-    # 提高可靠性的其他設置
-    MAIL_DEBUG=0,  # 設置為 1 可獲取 SMTP 調試輸出
+    MAIL_DEFAULT_SENDER=os.getenv('MAIL_DEFAULT_SENDER', 'mkaoy2k@gmail.com'),
+    MAIL_DEBUG=0,
     MAIL_SUPPRESS_SEND=False
 )
 
@@ -80,16 +95,11 @@ log.info(f"Using TLS: {app.config['MAIL_USE_TLS']}, Using SSL: {app.config['MAIL
 def init_globals():
     """
     初始化全局變數
-    
-    包含：
-    - 載入環境變數
-    - 設定日誌級別
-    - 初始化多語言支援 (L10N)
-    - 載入選單和頁面內容
-    
-    Returns:
-        tuple: 包含所有全局變數的元組
     """
+    global g_L10N, g_L10N_options, g_loc_key, g_loc
+    global g_MENU, g_menu, g_PAGE, g_home, g_faq, g_about
+    global backend, ft_svr, git_ftpe, git_subs
+    
     # 載入資料庫後端設定
     backend = os.getenv("DB_SVR", "sqlite3")
     log.debug(f"DB_SVR import: {backend}")
@@ -115,53 +125,53 @@ def init_globals():
     # 載入選單
     f_menu = os.getenv("OPS_MENU_FILE")
     g_MENU = load_menu(f_menu)
-    g_menu = g_MENU[f"{g_loc_key}"]
+    g_menu = g_MENU[g_loc_key]
     
     # 初始化所有語言的頁面內容
     g_PAGE = {}
-    for loc in g_L10N_options:
-        key = g_L10N_options.index(loc)
+    for idx, loc in enumerate(g_L10N_options):
         l_page = {}
         l_loc = g_L10N[loc]
         
-        # 初始化 home page
-        cats = [l_loc['HOME_HTML_T1'], 
-                l_loc['HOME_HTML_T2'],
-                l_loc['HOME_HTML_T3']
-                ]
-        l_home = {}
+        # 初始化 home page from here
+        cats = ["News", "Story", "Events"]
+        l_home = {"News": [], "Story": [], "Events": []}
         for cat in cats:
-            
             # get articles from last 7 days
             articles = get_articles_byDays(cat, byDays=7)
             log.debug(f"Found {len(articles)} articles in category '{cat}' from last 7 days")
             l_home[cat] = []
             for article in articles:
-                l_home[cat].append(article)
+                if article['l10n'] == loc:
+                    l_home[cat].append(article)
         l_page['home'] = l_home
         
-        # 初始化常見問題頁面
-        l_faq = {}
-        
-        # get the latest 5 articles
-        articles = get_articles(l_loc['FAQ_HTML_H1'], limit=5)
-        
-        for article in articles:
-            l_faq[article['title']] = article
-            log.debug(f"Found FAQ article: {article['title']}")
+        # 初始化 faq page from here
+        cats = ["FAQ"]
+        l_faq = {"FAQ": []}
+        for cat in cats:
+            # get all articles of this category
+            articles = get_articles(cat)
+            log.debug(f"Found {len(articles)} articles in category '{cat}'")
+            for article in articles:
+                if article['l10n'] == loc:
+                    l_faq[cat].append(article)
         l_page['faq'] = l_faq
         
-        # 初始化關於頁面
-        l_about = {}
-        
-        # get the latest 2 articles
-        articles = get_articles(l_loc['ABOUT_HTML_H1'], limit=2)
-        
-        for article in articles:
-            l_about[article['title']] = article
-            log.debug(f"Found About article: {article['title']}")
+        # 初始化 about page from here
+        cats = ["About"]
+        l_about = {"About": []}
+        for cat in cats:
+            # get all articles of this category
+            articles = get_articles(cat)
+            log.debug(f"Found {len(articles)} articles in category '{cat}'")
+            for article in articles:
+                if article['l10n'] == loc:
+                    l_about[cat].append(article)
         l_page['about'] = l_about
-        g_PAGE[key] = l_page
+        
+        # 將頁面內容添加到全局頁面字典中
+        g_PAGE[idx] = l_page
     
     # 設定當前語言的頁面內容
     key = g_L10N_options.index(g_loc_key)
@@ -171,236 +181,162 @@ def init_globals():
     
     return (backend, ft_svr, git_ftpe, git_subs, g_L10N, g_L10N_options,
             g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, g_home, g_faq, g_about)
-
-# 初始化全局變數
-(backend, ft_svr, git_ftpe, git_subs, g_L10N, g_L10N_options,
- g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, 
- g_home, g_faq, g_about) = init_globals()
-
+    
+def get_template_context():
+    """返回所有視圖函數共用的模板上下文"""
+    return {
+        'menu': g_menu,
+        'options': g_L10N_options,
+        'settings': g_loc['SETTINGS'],
+        'your_language': g_loc['YOUR_LANGUAGE'],
+        'subscribe': g_loc['SUBSCRIBE'],
+        'unsubscribe': g_loc['UNSUBSCRIBE'],
+        'email_subscription': g_loc['EMAIL_SUBSCRIPTION'],
+        'motto_btn': g_loc['HOME_HTML_H2'],
+        'motto': g_loc['HOME_HTML_MOTTO'],
+        'current_lang': g_loc_key  # 使用全局變數而不是 session
+    }    
+@app.before_request
+def before_request():
+    """在每個請求之前執行"""
+    global g_loc_key, g_loc, g_menu, g_home, g_faq, g_about
+    
+    # 確保 session 中有 current_lang
+    if 'current_lang' not in session:
+        session['current_lang'] = g_loc_key
+    else:
+        # 確保全局變數與 session 中的語言一致
+        if session['current_lang'] != g_loc_key and session['current_lang'] in g_L10N_options:
+            try:
+                g_loc_key = session['current_lang']
+                g_loc = g_L10N[g_loc_key]
+                g_menu = g_MENU[g_loc_key]
+                
+                # 更新頁面內容
+                key = g_L10N_options.index(g_loc_key)
+                g_home = g_PAGE[key]['home']
+                g_faq = g_PAGE[key]['faq']
+                g_about = g_PAGE[key]['about']
+            except Exception as e:
+                log.error(f"更新語言時出錯: {str(e)}")
+                
 @app.route("/")
 def home():
-    """
-    首頁路由
-    
-    Returns:
-        str: 渲染後的首頁 HTML
-    """
-    global g_loc, g_L10N_options, g_menu
-    
+    """首頁路由"""
+    context = get_template_context()
     t1 = g_loc['HOME_HTML_T1']
     t2 = g_loc['HOME_HTML_T2']
     t3 = g_loc['HOME_HTML_T3']
     
-    # get the articles about t1 from the last 7 days
-    t1_articles = g_home[t1]
-    
-    # get the lastest article about t2
-    t2_image = g_home[t2][0]['image_url']
-    t2_image_alt = t2_image.split('/')[-1] if t2_image else ''
-    
-    # get the articles about t3 from the last 7 days
-    t3_article = g_home[t3]
-    
-    return render_template('home.html',
-        menu=g_menu,
-        options=g_L10N_options,
-        settings=g_loc['SETTINGS'],
-        your_language=g_loc['YOUR_LANGUAGE'],
-        subscribe=g_loc['SUBSCRIBE'],
-        unsubscribe=g_loc['UNSUBSCRIBE'],
-        email_subscription=g_loc['EMAIL_SUBSCRIPTION'],
-        header=g_loc['HOME_HTML_H1'],
-        h2=g_loc['HOME_HTML_H2'],
-        motto=g_loc['HOME_HTML_MOTTO'],
-        ft_url=ft_svr,
-        t1=t1,
-        t1_articles=t1_articles,
-        t2=t2,
-        t2_title=g_home[t2][0]['title'],
-        t2_content=g_home[t2][0]['content'],
-        t2_image=t2_image,
-        t2_image_alt=t2_image_alt,
-        t3=t3,
-        t3_article=t3_article,
-        t4_greeting=g_loc['HOME_HTML_T4_GREETING'],
-        t4_team=g_loc['HOME_HTML_T4_TEAM'],
-        title='home')
+    context.update({
+        'header': g_loc['HOME_HTML_H1'],
+        't1': t1,
+        't1_articles': g_home["News"],
+        't2': t2,
+        't2_title': g_home["Story"][0]['title'],
+        't2_content': g_home["Story"][0]['content'],
+        't2_image': g_home["Story"][0].get('image_url', ''),
+        't2_image_alt': g_home["Story"][0].get('image_alt', ''),
+        't3': t3,
+        't3_article': g_home["Events"],
+        't4_greeting': g_loc['HOME_HTML_T4_GREETING'],
+        't4_team': g_loc['HOME_HTML_T4_TEAM'],
+        'ft_url': ft_svr,
+        'title': 'home'
+    })
+    return render_template('home.html', **context)
 
 @app.route("/faq")
 def faq():
-    """
-    常見問題 (FAQ) 頁面路由
-    
-    此路由負責渲染並返回常見問題頁面，顯示系統的使用說明和常見問題解答。
-    頁面內容支援多語言，根據用戶的語言設定自動切換。
-    
-    Returns:
-        str: 渲染後的 FAQ 頁面 HTML 內容
-        
-    全局變數：
-        g_loc (dict): 當前語系的本地化字串
-        g_L10N_options (list): 可用的語言選項
-        g_menu (dict): 導航菜單項目
-        g_faq (dict): 常見問題內容
-        
-    模板文件：
-        faq.html: 用於渲染 FAQ 頁面的模板
-    """
-    global g_loc, g_L10N_options, g_menu, g_faq, ft_svr
-    
-    try:
-        questions = [g_loc['FAQ_Q1_H2'], 
-                 g_loc['FAQ_Q2_H2'], 
-                 g_loc['FAQ_Q3_H2'], 
-                 g_loc['FAQ_Q4_H2'], 
-                 g_loc['FAQ_Q5_H2']]
-    except KeyError as e:
-        log.error(f"KeyError: {str(e)}")
-        questions = []
-    q_len = len(questions)
-    
-    answers = []
-    authors = []
-    images = []
-    
-    for title in questions:
-        if title in g_faq:
-            answers.append(g_faq[title]['content'])
-            authors.append(g_faq[title].get('author', ''))
-            images.append(g_faq[title].get('src_url', ''))
-        else:
-            answers.append("")
-            authors.append("")
-            images.append("")
-    
-    # 確保至少有 q_len 個問答
-    while len(answers) < q_len:
-        answers.append("")
-    while len(authors) < q_len:
-        authors.append("")
-    while len(images) < q_len:
-        images.append("")
-
-    return render_template('faq.html',
-        menu=g_menu,
-        options=g_L10N_options,
-        settings=g_loc['SETTINGS'],
-        your_language=g_loc['YOUR_LANGUAGE'],
-        lang=session.get('lang', 'US'),
-        subscribe=g_loc['SUBSCRIBE'],
-        unsubscribe=g_loc['UNSUBSCRIBE'],
-        email_subscription=g_loc['EMAIL_SUBSCRIPTION'],
-        header=g_loc['FAQ_HTML_H1'],
-        # 問題1
-        faq_ops_down_q=g_loc['FAQ_Q1_H2'],
-        # 問題2
-        faq_download_q=g_loc['FAQ_Q2_H2'],
-        # 問題3
-        faq_charge_q=g_loc['FAQ_Q3_H2'],
-        # 問題4
-        faq_donate_q=g_loc['FAQ_Q4_H2'],
-        # 問題5
-        faq_creator_q=g_loc['FAQ_Q5_H2'],
-        answers=answers,
-        authors=authors,
-        images=images,
-        ft_url=ft_svr,
-        title='faq')
+    """常見問題頁面"""
+    global g_faq
+    if len(g_faq['FAQ']) < 5:
+        log.debug(f"FAQ page content is not as planned: {g_faq['FAQ']}")
+        flash(f"FAQ page content is not as planned: {g_faq['FAQ']}", 'error')
+        return redirect(url_for('home'))
+    context = get_template_context()
+    context.update({
+        'header': g_loc['FAQ_HTML_H1'],
+        'questions': [article['title'] for article in g_faq["FAQ"]],
+        'answers': [article['content'] for article in g_faq["FAQ"]],
+        'authors': [article['author'] for article in g_faq["FAQ"]],
+        'images': [article['src_url'] for article in g_faq["FAQ"]],
+        'ft_url': ft_svr,
+        'title': 'faq'
+    })
+    return render_template('faq.html', **context)
 
 @app.route("/about")
 def about():
-    """
+    """關於頁面"""
+    global g_about
+    if len(g_about['About']) < 2:
+        log.debug(f"About page content is not as planned: {g_about['About']}")
+        flash(f"About page content is not as planned: {g_about['About']}", 'error')
+        return redirect(url_for('home'))
+    context = get_template_context()
+    body = [None, None]
+    log.debug(f"Processing about page content. Found {len(g_about['About'])} articles")
     
-    Returns:
-        Response: About FamilyTree 主網站
-    """
-    global g_loc, g_L10N_options, g_menu, g_about, git_ftpe, git_subs
+    # Log all article titles for debugging
+    for article in g_about['About']:
+        log.debug(f"Article title: '{article['title']}' (length: {len(article['content'])} chars)")
     
-    try:
-        titles = [
-            g_loc['ABOUT_INTRODUCTION_H2'],
-            g_loc['ABOUT_REPOSITORY_H2']
-        ]
-    except KeyError as e:
-        log.error(f"KeyError: {str(e)}")
-        titles = []
-    t_len = len(titles)
-
-    body = []
-    for title in titles:
-        if title in g_about:
-            body.append(g_about[title]['content'])
-        else:
-            body.append("")
-    
-    # 確保至少有 t_len 個段落
-    while len(body) < t_len:
-        body.append("")
-    
-    return render_template('About.html',
-        menu=g_menu,
-        options=g_L10N_options,
-        settings=g_loc['SETTINGS'],
-        your_language=g_loc['YOUR_LANGUAGE'],
-        subscribe=g_loc['SUBSCRIBE'],
-        unsubscribe=g_loc['UNSUBSCRIBE'],
-        email_subscription=g_loc['EMAIL_SUBSCRIPTION'], 
-        header=g_loc['ABOUT_HTML_H1'],
-        introduction=g_loc['ABOUT_INTRODUCTION_H2'],
-        repository=g_loc['ABOUT_REPOSITORY_H2'],
-        body=body,
-        git_ftpe=git_ftpe,
-        title='about')
+    # Match articles to expected sections
+    for article in g_about['About']:
+        if article['title'] == g_loc['ABOUT_INTRODUCTION_H2']:
+            body[0] = article['content']
+            log.debug(f"Found introduction article. Content length: {len(body[0])} chars")
+        elif article['title'] == g_loc['ABOUT_REPOSITORY_H2']:
+            body[1] = article['content']
+            log.debug(f"Found repository article. Content length: {len(body[1])} chars")
+    context.update({
+        'header': g_loc['ABOUT_HTML_H1'],
+        'introduction': g_loc['ABOUT_INTRODUCTION_H2'],
+        'repository': g_loc['ABOUT_REPOSITORY_H2'],
+        'body': body,
+        'git_ftpe': git_ftpe,
+        'git_subs': git_subs,
+        'title': 'about'
+    })
+    return render_template('about.html', **context)
 
 @app.route("/setL10N")
 def set_l10n():
     """
     設置語言本地化 (L10N) 路由
-    
-    根據 URL 參數切換網站顯示語言
-    
-    Query Parameters:
-        lang (str): 語言代碼
-        page (str): 當前頁面 ('faq' 或 'about')
-        
-    Returns:
-        Response: 重新導向到當前頁面的新語言版本
     """
-    global g_loc_key, g_loc, g_L10N_options
-    global g_MENU, g_menu, g_PAGE, g_faq, g_about, g_home
+    global g_loc_key, g_loc, g_menu, g_faq, g_about, g_home
     
     # 從 URL 參數獲取語言和頁面
-    g_loc_key = request.args.get('lang')
-    page = request.args.get('page', 'home')  # 預設為 home 頁面
+    lang = request.args.get('lang')
+    page = request.args.get('page', 'home')
     
-    try:
-        # 更新選單語言
-        g_menu = g_MENU[g_loc_key]
-        log.debug(f"Menu={g_menu}...")
-        
-        # 更新本地化設定
-        g_loc = g_L10N[g_loc_key]
-        log.debug(f"L10N='{g_loc_key}'...")
-        
-        # 更新頁面內容
-        key = g_L10N_options.index(g_loc_key)
-        g_faq = g_PAGE[key]['faq']
-        g_about = g_PAGE[key]['about']
-        g_home = g_PAGE[key]['home']
-        
-        # 返回相應頁面
-        if page == "about":
-            return about()
-        elif page == "faq":
-            return faq()
-        else:
-            return home()
-        
-    except (KeyError, ValueError) as e:
-        log.error(f"語言切換錯誤: {str(e)}")
-        # 如果出現錯誤，重定向到首頁
-        return redirect(f"/home")
-
+    if lang in g_L10N_options:
+        try:
+            # 更新全局變數
+            g_loc_key = lang
+            g_loc = g_L10N[lang]
+            g_menu = g_MENU[lang]
+            
+            # 更新頁面內容
+            key = g_L10N_options.index(lang)
+            g_faq = g_PAGE[key]['faq']
+            g_about = g_PAGE[key]['about']
+            g_home = g_PAGE[key]['home']
+            
+            # 保存到 session
+            session['current_lang'] = lang
+            
+        except Exception as e:
+            log.error(f"語言切換錯誤: {str(e)}")
+    
+    # 重定向到目標頁面
+    if page == "about":
+        return redirect(url_for('about'))
+    elif page == "faq":
+        return redirect(url_for('faq'))
+    return redirect(url_for('home'))
 
 @app.route('/subscribe', methods=['POST'])
 def subscribe():
@@ -574,40 +510,30 @@ def pub_newsletter():
         flash('No valid email addresses found', 'warning')
         return redirect(url_for('home'))
 
-    t1_image = g_home['1']['image']
-    t1_image_alt = t1_image.split('/')[-1] if t1_image else ''
-    t2_image = g_home['2']['image']
-    t2_image_alt = t2_image.split('/')[-1] if t2_image else ''
-    t3_image = g_home['3']['image']
-    t3_image_alt = t3_image.split('/')[-1] if t3_image else ''
-        
-    # create blob dictionary
-    blob = {
+    context = get_template_context()
+    t1 = g_loc['HOME_HTML_T1']
+    t2 = g_loc['HOME_HTML_T2']
+    t3 = g_loc['HOME_HTML_T3']
+    
+    context.update({
         'header': g_loc['HOME_HTML_H1'],
-        'h2': g_loc['HOME_HTML_H2'],
-        'motto': g_loc['HOME_HTML_MOTTO'],
-        'ft_url': ft_svr,
-        't1': g_loc['HOME_HTML_T1'],
-        't1_title': g_home['1']['title'],
-        't1_content': g_home['1']['content'],
-        't1_image': t1_image,
-        't1_image_alt': t1_image_alt,
-        't2': g_loc['HOME_HTML_T2'],
-        't2_title': g_home['2']['title'],
-        't2_content': g_home['2']['content'],
-        't2_image': t2_image,
-        't2_image_alt': t2_image_alt,
-        't3': g_loc['HOME_HTML_T3'],
-        't3_title': g_home['3']['title'],
-        't3_content': g_home['3']['content'],
-        't3_image': t3_image,
-        't3_image_alt': t3_image_alt,
+        't1': t1,
+        't1_articles': g_home["News"],
+        't2': t2,
+        't2_title': g_home["Story"][0]['title'],
+        't2_content': g_home["Story"][0]['content'],
+        't2_image': g_home["Story"][0].get('image_url', ''),
+        't2_image_alt': g_home["Story"][0].get('image_alt', ''),
+        't3': t3,
+        't3_articles': g_home["Events"],
         't4_greeting': g_loc['HOME_HTML_T4_GREETING'],
         't4_team': g_loc['HOME_HTML_T4_TEAM'],
-        'title': 'newsletter'
-    }
+        'ft_url': ft_svr,
+        'title': g_loc['HOME_HTML_H1']
+        })
+    
     try:
-        if send_newsletter(mail, emails, blob):
+        if send_newsletter(mail, emails, context):
             flash('Newsletter sent successfully', 'success')
         else:
             flash('Newsletter sent failed', 'danger')
@@ -624,6 +550,9 @@ def main():
     log.info("啟動 FamilyTree 操作伺服器...")
     # app.run(host='0.0.0.0', port=5555, use_reloader=False)
     app.run(port=5555, debug=True, use_reloader=True)
+
+# 初始化全局變數
+init_globals()
 
 if __name__ == "__main__":
     main()

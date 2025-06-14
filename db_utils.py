@@ -59,6 +59,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
             is_active INTEGER DEFAULT 0,
+            l10n TEXT NOT NULL DEFAULT 'US',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             token TEXT
@@ -73,12 +74,12 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             content TEXT NOT NULL,
-            category TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'News',
             author TEXT,
             source TEXT,
             src_url TEXT,
             image_url TEXT,
-            l10n TEXT NOT NULL,
+            l10n TEXT NOT NULL DEFAULT 'US',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )"""
@@ -225,7 +226,7 @@ def delete_user(email):
         except Exception as err:
             log.error(f"Caught '{err}'. class is {type(err)}")
 
-def get_articles(category, limit=1):
+def get_articles(category, limit=None):
     """
     根據分類取得最新的文章
     
@@ -254,12 +255,22 @@ def get_articles(category, limit=1):
         
     with get_db_connection() as conn:
         conn.row_factory = sqlite3.Row
-        cursor = conn.execute(f"""
-            SELECT * FROM {article_tbl} 
-            WHERE category = ?
-            ORDER BY updated_at DESC
-            LIMIT {limit}
-        """, (category,))
+        if limit is None:
+            cursor = conn.execute(f"""
+                SELECT * FROM {article_tbl} 
+                WHERE category = ?
+                ORDER BY updated_at DESC
+                """, (category,))
+        elif limit > 0:
+            cursor = conn.execute(f"""
+                SELECT * FROM {article_tbl} 
+                WHERE category = ?
+                ORDER BY updated_at DESC
+                LIMIT {limit}
+                """, (category,))
+        else:
+            log.debug(f"Invalid limit value: {limit}")
+            return None
         
         results = cursor.fetchall()
         if results:
@@ -327,6 +338,117 @@ def get_articles_byDays(category, byDays=7):
             
     log.debug(f"No articles found in category '{category}' from last {byDays} days")
     return None
+
+def delete_article(article_id):
+    """
+    根據文章 ID 刪除文章
+    
+    參數:
+        article_id (int): 要刪除的文章 ID
+        
+    回傳:
+        bool: 刪除成功返回 True，失敗返回 False
+    """
+    if not article_id or not isinstance(article_id, int) or article_id <= 0:
+        log.warning(f"Invalid article ID provided: {article_id}")
+        return False
+        
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                DELETE FROM {article_tbl}
+                WHERE id = ?
+            """, (article_id,))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                log.info(f"Successfully deleted article with ID: {article_id}")
+                return True
+            else:
+                log.warning(f"No article found with ID: {article_id}")
+                return False
+                
+    except sqlite3.Error as e:
+        log.error(f"Error deleting article with ID {article_id}: {str(e)}")
+        return False
+
+def get_article_categories():
+    """
+    取得所有不重複的文章分類
+    
+    回傳:
+        list: 包含所有不重複分類名稱的列表，按字母順序排序
+        
+    範例:
+        >>> categories = get_article_categories()
+        >>> print(categories)
+        ['Technology', 'Science', 'News']
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT DISTINCT category 
+                FROM {article_tbl}
+                ORDER BY category ASC
+            """)
+            
+            # 將結果轉換為簡單的列表
+            categories = [row[0] for row in cursor.fetchall()]
+            log.debug(f"Found {len(categories)} unique categories")
+            return categories
+            
+    except sqlite3.Error as e:
+        log.error(f"Error fetching article categories: {str(e)}")
+        return []
+
+def get_article_byId(article_id):
+    """
+    根據文章 ID 取得單一文章
+    
+    參數:
+        article_id (int): 要取得的文章 ID
+        
+    回傳:
+        dict: 包含文章資訊的字典，若無則返回 None
+        字典包含以下鍵值：
+        - id: 文章ID
+        - title: 文章標題
+        - content: 文章內容
+        - category: 文章分類
+        - author: 作者
+        - source: 來源
+        - src_url: 來源網址
+        - image_url: 圖片網址
+        - l10n: 語系
+        - created_at: 建立時間
+        - updated_at: 更新時間
+    """
+    if not article_id or not isinstance(article_id, int) or article_id <= 0:
+        log.warning(f"Invalid article ID provided: {article_id}")
+        return None
+        
+    try:
+        with get_db_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(f"""
+                SELECT * FROM {article_tbl}
+                WHERE id = ?
+            """, (article_id,))
+            
+            result = cursor.fetchone()
+            if result:
+                article = dict(result)
+                log.debug(f"Found article with ID: {article_id}")
+                return article
+                
+            log.debug(f"No article found with ID: {article_id}")
+            return None
+            
+    except sqlite3.Error as e:
+        log.error(f"Error fetching article with ID {article_id}: {str(e)}")
+        return None
 
 # Initialize the database when this module is imported
 init_db()

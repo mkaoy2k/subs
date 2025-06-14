@@ -60,7 +60,7 @@ class DatabaseViewer(QMainWindow):
         """
         super().__init__()
         self.setWindowTitle("SQLite 資料庫檢視器")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 1000, 600)
         
         # 儲存資料庫連線資訊
         self.database_path = database_path
@@ -154,14 +154,14 @@ class DatabaseViewer(QMainWindow):
         
             # 設置預設值
             defaults = {
-                "title": "新文章",
+                "title": "New Article",
                 "content": "",
-                "category": "焦點",
+                "category": "News",
                 "author": "",
                 "source": "",
                 "src_url": "",
                 "image_url": "",
-                "l10n": "繁中",
+                "l10n": "US",
                 "created_at": now,
                 "updated_at": now
             }

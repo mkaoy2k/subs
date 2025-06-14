@@ -1,73 +1,30 @@
-{% extends "layout.html" %} {% block content %}
+{% extends "layout.html" %} 
+
+{% block content %}
 <h1 class="mb-3">{{ header }}</h1>
 
-<!-- ops server down -->
+<!-- faq list -->
+{% for i in range(questions|length) %}
 <article class="media content-section">
+  {% if authors[i] %}
   <img
     class="rounded-circle article-img"
-    src="{{ authors[0] }}"
+    src="{{ authors[i] }}"
+    alt="Author"
   />
+  {% endif %}
   <div class="media-body">
-    <h3 class="article-title">{{ faq_ops_down_q }}</h3>
-    <p class="article-content">{{ answers[0]|safe }}</p>
+    <h3 class="article-title">{{ questions[i] }}</h3>
+    <p class="article-content">{{ answers[i]|safe }}</p>
+    {% if images[i] %}
     <img 
-      src="{{ images[0] }}" 
-      alt="Ops Server Down Screenshot"
+      src="{{ images[i] }}" 
+      alt="FAQ Image {{ i+1 }}"
       style="max-width: 100%; height: auto; margin: 10px 0;"
     >
-      </div>
-</article>
-
-<!-- download my family data -->
-<article class="media content-section">
-  <img
-    class="rounded-circle article-img"
-    src="{{ authors[1] }}"
-  />
-  <div class="media-body">
-    <h3 class="article-title">{{ faq_download_q }}</h3>
-    <p class="article-content">{{ answers[1]|safe }}</p>    
-    <img 
-    src="{{ images[1] }}" 
-    alt="Settings Screenshot"
-    style="max-width: 100%; height: auto; margin: 10px 0;"
-  >
+    {% endif %}
   </div>
 </article>
+{% endfor %}
 
-<!-- how to charge -->
-<article class="media content-section">
-  <img
-    class="rounded-circle article-img"
-    src="{{ authors[2] }}"
-  />
-  <div class="media-body">
-    <h3 class="article-title">{{ faq_charge_q }}</h3>
-    <p class="article-content">{{ answers[2]|safe }}</p>
-  </div>
-</article>
-
-<!-- how to donate -->
-<article class="media content-section">
-  <img
-    class="rounded-circle article-img"
-    src="{{ authors[3] }}"
-  />
-  <div class="media-body">
-    <h3 class="article-title">{{ faq_donate_q }}</h3>
-    <p class="article-content">{{ answers[3]|safe }}</p>
-  </div>
-</article>
-
-<!-- who created this app -->
-<article class="media content-section">
-  <img
-    class="rounded-circle article-img"
-    src="{{ authors[4] }}"
-  />
-  <div class="media-body">
-    <h3 class="article-title">{{ faq_creator_q }}</h3>
-    <p class="article-content">{{ answers[4]|safe }}</p>
-  </div>
-</article>
 {% endblock content %}

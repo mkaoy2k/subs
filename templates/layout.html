@@ -18,6 +18,7 @@
 </head>
 <body>
     <header class="site-header">
+        <!-- Navigation from here -->
         <nav class="navbar navbar-expand-md navbar-dark bg-steel fixed-top">
           <div class="container">
             <div class="collapse navbar-collapse" id="navbarToggle">
@@ -48,18 +49,24 @@
           <div class="col-md-8">
             {% block content %}{% endblock %}
           </div>
+          <!-- Right Column from here -->
           <div class="col-md-4">
+            <!-- Settings from here -->
             <div class="content-section">
-              <!-- Settings from here -->
               <h3> {{ settings }}</h3>
-              <div class="mb-4">
+                <div class="mb-4">
+                <!-- Language from here -->
                 <h5> {{ your_language }}</h5>
-                  <ul class="list-group">
-                    {% for option in options %}
-                      <li class="list-group-item list-group-item-light">
-                      <a href="{{ url_for('set_l10n', lang=option, page=title) }}">{{ option }}</a></li>
-                    {% endfor %}
-                  </ul>
+                <select class="form-select" onchange="window.location.href=this.value" style="max-width: 100%; min-width: 200px;">
+                  {% for lang in options %}
+                  <option value="{{ url_for('set_l10n', lang=lang, page=title) }}" 
+                          {% if lang == current_lang %}selected{% endif %}>
+                      {{ settings[lang] if settings[lang] else lang }}
+                  </option>
+                  {% endfor %}
+                </select> 
+                </div>
+                <!-- Email Subscription from here -->
                 <div class="mt-4">
                   <h5> {{ email_subscription }}</h5>
                   <form action="{{ url_for('subscribe') }}" method="post">
@@ -72,9 +79,18 @@
                     </div>
                   </form>
                 </div>
-            </div>
+            </div> 
+            <!-- Motto from here -->
+            <div class="text-center mb-3">
+                <a href="{{ ft_url }}" class="btn btn-primary" target="_blank" rel="noopener noreferrer"
+                >{{ motto_btn }}</a>
+                <div class="content-block">
+                    {{ motto|safe }}
+                </div>
+            </div> 
           </div>
         </div>
-      </main>
-  </body>
+      </div>
+    </main>
+  </body> 
 </html>

@@ -153,10 +153,10 @@ if __name__ == '__main__':
     print(f"l_menu[1] Text={l_menu[1][1]}\n")
     print(f"l_menu[2] URL={l_menu[2][0]}\n")
     print(f"l_menu[2] Text={l_menu[2][1]}\n")
-    # g_L10N = load_L10N("L10N.json")
-    # print(f"g_L10N={g_L10N}\n")
-    # g_L10N_options = list(g_L10N.keys())
-    # print(f"g_L10N_options={g_L10N_options}")
+    g_L10N = load_L10N("L10N.json")
+    print(f"g_L10N={g_L10N}\n")
+    g_L10N_options = list(g_L10N.keys())
+    print(f"g_L10N_options={g_L10N_options}")
     
     # 測試頭像建立
     # test_input = "test.jpg"  # 替換為您的測試圖片路徑
