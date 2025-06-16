@@ -62,7 +62,7 @@ def send_verification_email(mail, email, token, is_subscribe=True):
     Returns:
         bool: True if email was sent successfully, False otherwise
     """
-    log.info(f"Preparing to send verification email to {email}")
+    log.debug(f"Preparing to send verification email to {email}")
     action = 'subscribe' if is_subscribe else 'unsubscribe'
     subject = f"Please confirm that you want to {action} to {Config.APP_NAME}"
     
@@ -106,8 +106,15 @@ def send_verification_email(mail, email, token, is_subscribe=True):
         log.debug(f"Using TLS: {Config.MAIL_USE_TLS}, Using SSL: {Config.MAIL_USE_SSL}")
         
         # Send the email using the helper function
-        return _send_mail(mail, msg)
+        result = _send_mail(mail, msg)
+            
+        if result:
+            log.debug(f"Verification email sent successfully to {email} for {'subscription' if is_subscribe else 'unsubscription'}")
+        else:
+            log.warning(f"Failed to send verification email to {email} for {'subscription' if is_subscribe else 'unsubscription'}")
                 
+        return result
+            
     except Exception as e:
         log.error(f"Failed to prepare email: {str(e)}", exc_info=True)
         return False
@@ -194,7 +201,7 @@ def send_newsletter(mail, emails, blob):
             result = _send_mail(mail, msg)
             
             if result:
-                log.info("Newsletter sent successfully")
+                log.debug("Newsletter sent successfully")
             else:
                 log.warning("Failed to send newsletter after retries")
                 

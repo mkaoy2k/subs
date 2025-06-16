@@ -1,6 +1,6 @@
 # Ping Operations server
-# OPS_SVR="https://bold-squirrel-vertically.ngrok-free.app"
-OPS_SVR="http://127.0.0.1:8501"
+OPS_SVR="https://bold-squirrel-vertically.ngrok-free.app"
+# OPS_SVR="http://127.0.0.1:8501"
 while true
     do 
         echo "================================================"

@@ -1,23 +1,23 @@
 """
-資料庫工具模組 (Database Utilities Module)
+Database Utilities Module
 
-此模組提供與 SQLite 資料庫互動的相關功能，
-包括：
-- 資料庫連接管理
-- 訂閱者資料的增刪查改 (CRUD)
-- 電子郵件驗證令牌處理
-- 資料庫初始化與設定
+This module provides functionality for interacting with SQLite databases,
+including:
+- Database connection management
+- CRUD operations for subscriber data
+- Email verification token handling
+- Database initialization and configuration
 
-環境變數需求:
-- DB_NAME: 資料庫檔案名稱
-- TBL_USR: 資料表 User 名稱
-- TBL_ARTICLE: 資料表 Article 名稱
-- LOGGING: 日誌記錄層級 (DEBUG/INFO/WARNING/ERROR/CRITICAL)
+Environment Variables Required:
+- DB_NAME: Database file name
+- TBL_USR: User table name
+- TBL_ARTICLE: Article table name
+- LOGGING: Logging level (DEBUG/INFO/WARNING/ERROR/CRITICAL)
 
-主要功能:
-- 管理訂閱者的電子郵件和驗證狀態
-- 處理訂閱/取消訂閱流程
-- 提供查詢介面取得訂閱者資訊
+Main Features:
+- Manage subscriber emails and verification status
+- Handle subscription/unsubscription processes
+- Provide query interface for subscriber information
 """
 
 import sqlite3
@@ -59,7 +59,7 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
             is_active INTEGER DEFAULT 0,
-            l10n TEXT NOT NULL DEFAULT 'US',
+            l10n TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             token TEXT
@@ -79,7 +79,7 @@ def init_db():
             source TEXT,
             src_url TEXT,
             image_url TEXT,
-            l10n TEXT NOT NULL DEFAULT 'US',
+            l10n TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )"""
@@ -87,34 +87,69 @@ def init_db():
         conn.execute(sql_stmt)
         conn.commit()
 
-def add_subscriber(email, token):
+def add_subscriber(email, token, lang=None):
     """Add a new subscriber with pending status 
     or update existing one with active status"""
     with get_db_connection() as conn:
         try:
-            conn.execute(f'''
-            INSERT INTO {user_tbl} (email, token, is_active, created_at)
-            VALUES (?, ?, {States['pending']}, CURRENT_TIMESTAMP)
-            ON CONFLICT(email) DO UPDATE SET
-                is_active = {States['active']},
+            if lang:
+                conn.execute(f'''
+                INSERT INTO {user_tbl} (email, token, is_active, l10n, created_at)
+                VALUES (?, ?, {States['pending']}, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(email) DO UPDATE SET
+                    is_active = {States['active']},
+                token = excluded.token,
+                l10n = excluded.l10n,
+                updated_at = CURRENT_TIMESTAMP
+                ''', (email, token, lang))
+            else:
+                conn.execute(f'''
+                INSERT INTO {user_tbl} (email, token, is_active, created_at)
+                VALUES (?, ?, {States['pending']}, CURRENT_TIMESTAMP)
+                ON CONFLICT(email) DO UPDATE SET
+                    is_active = {States['active']},
                 token = excluded.token,
                 updated_at = CURRENT_TIMESTAMP
-            ''', (email, token))
+                ''', (email, token))
             conn.commit()
             return True
         except sqlite3.IntegrityError:
             return False
 
 def remove_subscriber(email):
-    """Unsubscribe an email"""
-    with get_db_connection() as conn:
-        conn.execute(f'''
-        UPDATE {user_tbl} 
-        SET is_active = {States['inactive']}, updated_at = CURRENT_TIMESTAMP 
-        WHERE email = ?
-        ''', (email,))
-        conn.commit()
-        return conn.total_changes > 0
+    """
+    Unsubscribe an email address
+    
+    Args:
+        email (str): The email address to unsubscribe
+        
+    Returns:
+        bool: Returns True if the record was successfully updated, False otherwise
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            # Use 'inactive' state from States dictionary
+            inactive_state = States['inactive']
+            
+            cursor.execute(f'''
+            UPDATE {user_tbl} 
+            SET is_active = ?, 
+                updated_at = CURRENT_TIMESTAMP,
+                token = NULL
+            WHERE email = ?
+            ''', (inactive_state, email))
+            conn.commit()
+            
+            if cursor.rowcount > 0:
+                log.info(f"Successfully unsubscribed {email}")
+                return True
+            else:
+                log.warning(f"No user found with email {email} to unsubscribe")
+                return False
+    except Exception as e:
+        log.error(f"Error unsubscribing {email}: {str(e)}", exc_info=True)
+        return False
 
 def verify_token(email, token):
     """Verify subscription token"""
@@ -127,7 +162,7 @@ def verify_token(email, token):
         result = cursor.fetchone()
         return result is not None
 
-def get_subscribers(state='active'):
+def get_subscribers(state='active', lang=None):
     """
     Fetch subscribers from the database based on their status
     
@@ -152,43 +187,49 @@ def get_subscribers(state='active'):
         # Build the query based on status
         if state == 'all':
             cursor = conn.execute(f"""
-            SELECT id, email, token, is_active, created_at, updated_at 
-            FROM {user_tbl} 
+            SELECT * FROM {user_tbl} 
             ORDER BY created_at DESC
         """)
         else:
-            cursor = conn.execute(f"""
-            SELECT id, email, token, is_active, created_at, updated_at 
-            FROM {user_tbl} 
-            WHERE is_active = ?
-            ORDER BY created_at DESC
-        """, (States[state],))
+            if lang:
+                cursor = conn.execute(f"""
+                SELECT * FROM {user_tbl} 
+                WHERE is_active = ? AND l10n = ?
+                ORDER BY created_at DESC
+            """, (States[state], lang))
+            else:
+                cursor = conn.execute(f"""
+                SELECT * FROM {user_tbl} 
+                WHERE is_active = ?
+                ORDER BY created_at DESC
+            """, (States[state],))
         
         subscribers = [dict(row) for row in cursor.fetchall()]
         
-        log.debug(f"Fetched {len(subscribers)} {state} subscribers")
+        log.debug(f"Fetched {len(subscribers)} {state} subscribers with {lang} language")
         return subscribers
 
-def get_user(email):
+def get_subscriber(email):
     """
-    根據電子郵件查詢單一用戶記錄
+    Retrieve a single user record by email
     
-    此函數用於根據電子郵件地址查詢資料庫中的用戶記錄。
-    如果找到對應的用戶，返回包含用戶資訊的字典；
-    如果沒有找到，則返回 None。
+    This function queries the database for a user record based on the email address.
+    If a matching user is found, returns a dictionary containing the user information;
+    otherwise, returns None.
     
-    參數:
-        email (str): 要查詢的電子郵件地址
+    Args:
+        email (str): The email address to query
         
-    返回:
-        dict or None: 包含用戶資訊的字典，若無則返回 None。
-                     字典包含以下鍵值：
-                     - id: 用戶唯一識別碼
-                     - email: 電子郵件地址
-                     - token: 驗證令牌
-                     - is_active: 帳號狀態 (1/0/-1)
-                     - created_at: 建立時間
-                     - updated_at: 最後更新時間
+    Returns:
+        dict or None: A dictionary containing user information if found, None otherwise.
+                     The dictionary includes the following keys:
+                     - id: Unique user identifier
+                     - email: Email address
+                     - token: Verification token
+                     - is_active: Account status (1/0/-1)
+                     - l10n: Language/locale
+                     - created_at: Creation timestamp
+                     - updated_at: Last update timestamp
     """
     if not email or not isinstance(email, str):
         log.warning("Invalid email provided to get_user")
@@ -197,7 +238,7 @@ def get_user(email):
     with get_db_connection() as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(f"""
-            SELECT id, email, token, is_active, created_at, updated_at 
+            SELECT * 
             FROM {user_tbl} 
             WHERE email = ?
         """, (email,))
@@ -211,7 +252,7 @@ def get_user(email):
     log.debug(f"No user found with email: {email}")
     return None
 
-def delete_user(email):
+def delete_subscriber(email):
     """
     Always return None, even if the key does not exist.
     """
@@ -228,26 +269,26 @@ def delete_user(email):
 
 def get_articles(category, limit=None):
     """
-    根據分類取得最新的文章
+    Retrieve the latest articles by category
     
-    參數:
-        category (str): 文章分類
-        limit (int): 取得的文章數量
+    Args:
+        category (str): Article category to filter by
+        limit (int, optional): Maximum number of articles to return
         
-    回傳:
-        list of 文章資訊的字典，若無則返回 None。
-        字典包含以下鍵值：
-        - id: 文章ID
-        - title: 文章標題
-        - content: 文章內容
-        - category: 文章分類
-        - author: 作者
-        - source: 來源
-        - src_url: 來源網址
-        - image_url: 圖片網址
-        - l10n: 語系
-        - created_at: 建立時間
-        - updated_at: 更新時間
+    Returns:
+        list: A list of article information dictionaries, or None if no articles found.
+              Each dictionary contains the following keys:
+              - id: Article ID
+              - title: Article title
+              - content: Article content
+              - category: Article category
+              - author: Author name
+              - source: Source of the article
+              - src_url: Source URL
+              - image_url: URL of the article's image
+              - l10n: Language/locale
+              - created_at: Creation timestamp
+              - updated_at: Last update timestamp
     """
     if not category:
         log.warning("No category provided to get_article")
@@ -287,32 +328,32 @@ def get_articles(category, limit=None):
 
 def get_articles_byDays(category, byDays=7):
     """
-    根據分類取得最近 N 天的文章
+    Retrieve articles from the last N days by category
     
-    參數:
-        category (str): 文章分類
-        byDays (int): 天數範圍，預設為 7 天
+    Args:
+        category (str): Article category to filter by
+        byDays (int, optional): Number of days to look back. Defaults to 7 days.
         
-    回傳:
-        list of 文章資訊的字典，若無則返回 None。
-        字典包含以下鍵值：
-        - id: 文章ID
-        - title: 文章標題
-        - content: 文章內容
-        - category: 文章分類
-        - author: 作者
-        - source: 來源
-        - src_url: 來源網址
-        - image_url: 圖片網址
-        - l10n: 語系
-        - created_at: 建立時間
-        - updated_at: 更新時間
+    Returns:
+        list: A list of article information dictionaries from the specified time period,
+              or None if no articles found. Each dictionary contains:
+              - id: Article ID
+              - title: Article title
+              - content: Article content
+              - category: Article category
+              - author: Author name
+              - source: Source of the article
+              - src_url: Source URL
+              - image_url: URL of the article's image
+              - l10n: Language/locale
+              - created_at: Creation timestamp
+              - updated_at: Last update timestamp
     """
     if not category:
         log.warning("No category provided to get_articles_byDays")
         return None
         
-    # 計算 N 天前的日期
+    # Calculate date N days ago
     from datetime import datetime, timedelta
     days_ago = datetime.now() - timedelta(days=byDays)
     date_str = days_ago.strftime('%Y-%m-%d %H:%M:%S')
@@ -375,12 +416,12 @@ def delete_article(article_id):
 
 def get_article_categories():
     """
-    取得所有不重複的文章分類
+    Retrieve all unique article categories
     
-    回傳:
-        list: 包含所有不重複分類名稱的列表，按字母順序排序
+    Returns:
+        list: A list of all unique category names, sorted alphabetically
         
-    範例:
+    Example:
         >>> categories = get_article_categories()
         >>> print(categories)
         ['Technology', 'Science', 'News']
@@ -394,7 +435,7 @@ def get_article_categories():
                 ORDER BY category ASC
             """)
             
-            # 將結果轉換為簡單的列表
+            # Convert result to a simple list
             categories = [row[0] for row in cursor.fetchall()]
             log.debug(f"Found {len(categories)} unique categories")
             return categories
@@ -405,25 +446,25 @@ def get_article_categories():
 
 def get_article_byId(article_id):
     """
-    根據文章 ID 取得單一文章
+    Retrieve a single article by its ID
     
-    參數:
-        article_id (int): 要取得的文章 ID
+    Args:
+        article_id (int): The ID of the article to retrieve
         
-    回傳:
-        dict: 包含文章資訊的字典，若無則返回 None
-        字典包含以下鍵值：
-        - id: 文章ID
-        - title: 文章標題
-        - content: 文章內容
-        - category: 文章分類
-        - author: 作者
-        - source: 來源
-        - src_url: 來源網址
-        - image_url: 圖片網址
-        - l10n: 語系
-        - created_at: 建立時間
-        - updated_at: 更新時間
+    Returns:
+        dict: A dictionary containing the article information, or None if not found.
+              The dictionary includes the following keys:
+              - id: Article ID
+              - title: Article title
+              - content: Article content
+              - category: Article category
+              - author: Author name
+              - source: Source of the article
+              - src_url: Source URL
+              - image_url: URL of the article's image
+              - l10n: Language/locale
+              - created_at: Creation timestamp
+              - updated_at: Last update timestamp
     """
     if not article_id or not isinstance(article_id, int) or article_id <= 0:
         log.warning(f"Invalid article ID provided: {article_id}")
@@ -449,6 +490,69 @@ def get_article_byId(article_id):
     except sqlite3.Error as e:
         log.error(f"Error fetching article with ID {article_id}: {str(e)}")
         return None
+def delete_article(article_id):
+    """
+    根據文章 ID 刪除文章
+    
+    參數:
+        article_id (int): 要刪除的文章 ID
+        
+    回傳:
+        bool: 刪除成功返回 True，失敗返回 False
+    """
+    if not article_id or not isinstance(article_id, int) or article_id <= 0:
+        log.warning(f"Invalid article ID provided: {article_id}")
+        return False
+        
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                DELETE FROM {article_tbl}
+                WHERE id = ?
+            """, (article_id,))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                log.info(f"Successfully deleted article with ID: {article_id}")
+                return True
+            else:
+                log.warning(f"No article found with ID: {article_id}")
+                return False
+                
+    except sqlite3.Error as e:
+        log.error(f"Error deleting article with ID {article_id}: {str(e)}")
+        return False
+    
+def drop_table(tbl):
+    """
+    Drop the specified database table
+    
+    Args:
+        tbl (str): Name of the table to drop
+    
+    Returns:
+        bool: True if the table was successfully dropped, False otherwise
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            # Check if table exists
+            cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{tbl}'")
+            if cursor.fetchone() is None:
+                log.warning(f"Table '{tbl}' does not exist")
+                return False
+                
+            # Drop table
+            cursor.execute(f"DROP TABLE {tbl}")
+            conn.commit()
+            log.info(f"Successfully dropped table '{tbl}'")
 
+            return True
+            
+    except sqlite3.Error as e:
+        log.error(f"Error dropping table '{tbl}': {str(e)}")
+        return False
+    
 # Initialize the database when this module is imported
 init_db()

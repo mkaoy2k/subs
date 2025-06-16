@@ -3,28 +3,45 @@ from PIL import Image, ImageEnhance
 import os
 
 """
-功能工具模組 (Function Utilities Module)
+Function Utilities Module
 
-此模組提供多種輔助功能，包括：
-- 選單載入功能
-- 多國語言本地化(L10N)支援
-- 頭像圖片處理
+This module provides various utility functions including:
+- Menu loading functionality
+- Multi-language localization (L10N) support
+- Avatar image processing
 
+Key Features:
+- load_menu: Loads menu configurations from JSON files
+- load_L10N: Manages multi-language support with JSON-based translations
+- create_avatar: Processes and enhances profile pictures with resizing and quality improvements
+
+Dependencies:
+- Pillow (PIL): For image processing
+- Standard libraries: json, os
 """
 
 def load_menu(fn):
     """
-    從 JSON 檔案載入選單設定
+    Load menu configuration from a JSON file.
     
-    參數:
-        fn (str): 選單設定檔的路徑
+    This function reads a JSON file containing menu configurations and returns
+    the parsed data as a Python dictionary. The JSON file should contain menu
+    items and their corresponding display text for different languages.
+    
+    Args:
+        fn (str): Path to the menu configuration JSON file.
         
-    返回:
-        dict: 解析後的 JSON 資料，包含選單設定
+    Returns:
+        dict: Parsed JSON data containing menu configurations.
         
-    範例:
-        menu_data = load_menu("menu_config.json")
-        print(menu_data['main_menu'])
+    Example:
+        >>> menu_data = load_menu("menu_config.json")
+        >>> print(menu_data['main_menu'])
+        [['url1', 'Menu Item 1'], ['url2', 'Menu Item 2']]
+        
+    Raises:
+        FileNotFoundError: If the specified file does not exist.
+        json.JSONDecodeError: If the file contains invalid JSON.
     """
     # reading the data from the language-definition file
     with open(fn) as f:
@@ -37,23 +54,33 @@ def load_menu(fn):
 
 def load_L10N(f_l10n):
     """
-    載入多國語言本地化(L10N)字典
+    Load all supported language localization (L10N) dictionaries.
     
-    從指定的 JSON 設定檔載入所有支援語言的本地化字典。
+    This function loads translation dictionaries for all supported languages from the specified
+    configuration file. The configuration file should map language codes to their respective
+    translation file paths.
     
-    參數:
-        f_l10n (str): 語言設定檔的路徑，該檔案應包含各語言對應的翻譯檔案路徑
+    Args:
+        f_l10n (str): Path to the L10N configuration file. This file should be a JSON
+                    where keys are language codes and values are paths to translation files.
         
-    返回:
-        dict: 以語言名稱為鍵，對應的本地化字典為值的字典
+    Returns:
+        dict: A dictionary where keys are language codes and values are the corresponding
+             translation dictionaries.
         
-    範例:
-        l10n_dicts = load_L10N("L10N.json")
-        print(l10n_dicts['US']['welcome_message'])
+    Example:
+        >>> l10n_dicts = load_L10N("L10N.json")
+        >>> print(l10n_dicts['US']['welcome_message'])
+        'Welcome to our application!'
         
-    注意:
-        - 設定檔應為 JSON 格式，鍵為語言代碼，值為對應的翻譯檔案路徑
-        - 每個翻譯檔案也應為 JSON 格式，包含該語言的翻譯鍵值對
+    Note:
+        - The configuration file should be in JSON format
+        - Each translation file should contain key-value pairs for the translations
+        - Language codes should follow standard ISO 639-1 or similar conventions
+        
+    Raises:
+        FileNotFoundError: If the configuration file or any translation file is not found.
+        json.JSONDecodeError: If any of the JSON files contain invalid syntax.
     """
     # Build and return a dictionary for all supported languages, 
     # with key of language name and associated L10N dictionaries.
@@ -81,33 +108,59 @@ def load_L10N(f_l10n):
 
 def create_avatar(input_path, output_path, size=400, brightness=1.1, contrast=1.1):
     """
-    將 JPEG 圖片轉換為指定大小的頭像，並進行基本的圖像增強
+    Convert an image to a square avatar with optional image enhancements.
     
-    參數:
-        input_path (str): 輸入圖片的路徑
-        output_path (str): 輸出頭像的保存路徑
-        size (int): 輸出頭像的尺寸（正方形，預設 400x400 像素）
-        brightness (float): 亮度增強因子（>1 變亮，<1 變暗，預設 1.1）
-        contrast (float): 對比度增強因子（>1 增加對比度，<1 減少對比度，預設 1.1）
+    This function processes an input image to create a square avatar with the specified
+    dimensions. It performs the following operations:
+    1. Converts the image to RGB mode if necessary
+    2. Crops the image to a square aspect ratio (centered)
+    3. Resizes the image to the specified dimensions
+    4. Applies brightness and contrast adjustments
+    5. Saves the result as a JPEG file
+    
+    Args:
+        input_path (str): Path to the source image file.
+        output_path (str): Path where the processed avatar will be saved.
+        size (int, optional): Width and height of the output square image in pixels.
+                           Defaults to 400.
+        brightness (float, optional): Brightness adjustment factor.
+                                   >1.0 increases brightness,
+                                   <1.0 decreases brightness.
+                                   Defaults to 1.1.
+        contrast (float, optional): Contrast adjustment factor.
+                                 >1.0 increases contrast,
+                                 <1.0 decreases contrast.
+                                 Defaults to 1.1.
         
-    返回:
-        bool: 轉換成功返回 True，失敗返回 False
+    Returns:
+        bool: True if the operation was successful, False otherwise.
         
-    範例:
-        # 基本使用
-        success = create_avatar("input.jpg", "avatar.jpg")
+    Example:
+        >>> # Basic usage with default parameters
+        >>> success = create_avatar("input.jpg", "avatar.jpg")
+        >>> 
+        >>> # Custom size and enhancement parameters
+        >>> success = create_avatar("input.jpg", "avatar_small.jpg", 
+        ...                       size=200, brightness=1.2, contrast=1.3)
         
-        # 自訂尺寸和增強參數
-        success = create_avatar("input.jpg", "avatar.jpg", size=300, brightness=1.2, contrast=1.2)
+    Note:
+        - Supported input formats include JPEG, PNG, and other formats supported by Pillow.
+        - Output is always saved as JPEG with 90% quality.
+        - If the output directory doesn't exist, it will be created.
+        
+    Raises:
+        FileNotFoundError: If the input file does not exist.
+        PIL.UnidentifiedImageError: If the input file is not a valid image.
+        OSError: If there are permission issues when writing the output file.
     """
     try:
-        # 開啟圖片
+        # Open image
         with Image.open(input_path) as img:
-            # 轉換為 RGB 模式（處理 RGBA 或 P 模式）
+            # Convert to RGB mode (handles RGBA or P mode)
             if img.mode != 'RGB':
                 img = img.convert('RGB')
                 
-            # 裁剪為正方形
+            # Crop to square
             width, height = img.size
             min_dimension = min(width, height)
             left = (width - min_dimension) // 2
@@ -116,10 +169,10 @@ def create_avatar(input_path, output_path, size=400, brightness=1.1, contrast=1.
             bottom = top + min_dimension
             img = img.crop((left, top, right, bottom))
             
-            # 調整大小
+            # Resize
             img = img.resize((size, size), Image.LANCZOS)
             
-            # 增強亮度和對比度
+            # Enhance brightness and contrast
             if brightness != 1.0:
                 enhancer = ImageEnhance.Brightness(img)
                 img = enhancer.enhance(brightness)
@@ -128,13 +181,13 @@ def create_avatar(input_path, output_path, size=400, brightness=1.1, contrast=1.
                 enhancer = ImageEnhance.Contrast(img)
                 img = enhancer.enhance(contrast)
             
-            # 順時針旋轉 0 度
+            # Rotate 0 degrees clockwise
             img = img.rotate(0, expand=True)
             
-            # 確保輸出目錄存在
+            # Ensure output directory exists
             os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
             
-            # 儲存圖片
+            # Save image
             img.save(output_path, "JPEG", quality=90)
             return True
             
@@ -144,7 +197,7 @@ def create_avatar(input_path, output_path, size=400, brightness=1.1, contrast=1.
 
 # Functional testing
 if __name__ == '__main__':
-    # 測試多國語言本地化(L10N)載入
+    # Test multi-language localization (L10N) loading
     menu = load_menu("ops_menu.json")
     l_menu = menu['繁中']
     print(f"l_menu[0] URL={l_menu[0][0]}\n")
@@ -158,14 +211,14 @@ if __name__ == '__main__':
     g_L10N_options = list(g_L10N.keys())
     print(f"g_L10N_options={g_L10N_options}")
     
-    # 測試頭像建立
-    # test_input = "test.jpg"  # 替換為您的測試圖片路徑
+    # Test avatar creation
+    # test_input = "test.jpg"  # Replace with your test image path
     # test_output = "test_avatar.jpg"
     # if os.path.exists(test_input):
     #     success = create_avatar(test_input, test_output)
     #     if success:
-    #         print(f"頭像已成功建立: {test_output}")
+    #         print(f"Avatar successfully created: {test_output}")
     #     else:
-    #         print("建立頭像失敗")
+    #         print("Failed to create avatar")
     # else:
-    #     print(f"測試圖片 {test_input} 不存在")
+    #     print(f"Test image {test_input} does not exist")

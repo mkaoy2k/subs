@@ -1,24 +1,24 @@
 """
-訂閱者資料庫查詢介面 (User Database Query Interface)
+Subscriber Table Update Interface
 
-此模組提供一個基於 Streamlit 的網頁介面，
-用於查詢和管理訂閱者資料庫。
+This module provides a Streamlit-based web interface
+for querying and managing the subscriber database.
 
-主要功能:
-- 顯示活躍訂閱者清單
-- 顯示非活躍訂閱者清單
-- 顯示所有訂閱者資料
-- 支援電子郵件查詢特定用戶
+Main Features:
+- Display active subscriber list
+- Display inactive subscriber list
+- Display all subscriber data
+- Support email query for specific users
 
-使用技術:
-- Streamlit: 網頁介面框架
-- Pandas: 資料處理與顯示
-- db_utils: 自訂資料庫工具模組
+Technologies Used:
+- Streamlit: Web interface framework
+- Pandas: Data processing and display
+- db_utils: Custom database utility module
 
-注意事項:
-1. 需先設定好環境變數 (.env 檔案)
-2. 需要安裝相關套件: streamlit, pandas
-3. 執行方式: streamlit run ops_user_query.py
+Notes:
+1. Environment variables must be set up (.env file)
+2. Required packages: streamlit, pandas
+3. Execution: streamlit run ops_user_update.py
 """
 
 import streamlit as st
@@ -26,7 +26,7 @@ import pandas as pd  # pip install pandas
 import db_utils as dbm
 from email_utils import validate_email
 
-st.title("Query User Database")
+st.title("Subscriber Table Management")
 st.markdown(
     """
     ##### *Created with ❤️ by* [Michael Kao](https://github.com/mkaoy2k):sunglasses:
@@ -43,7 +43,7 @@ def format_timestamps(df):
     return df
 
 df = pd.DataFrame()
-btn1, btn2, btn3 = st.columns([5,5,3])
+btn1, btn2, btn3 = st.columns([5,5,5])
 
 try:
     with btn1:
@@ -72,22 +72,26 @@ try:
                 df = format_timestamps(df)
                 st.dataframe(df)
             else:
-                st.info("No pending subscribers found")
-                
-    # --- query a specific user --- from here
+                st.info("No pending subscribers found")     
+    
+    # --- update a specific ubscriber --- from here
     st.markdown(
     """
     ---
     """
     )
-    email = st.text_input(':blue[Email:]', 
-                    placeholder='Enter email to Query')
-    email = email.strip()
-    if st.button("User Query"):
+    col1, col2 = st.columns([5,5])
+    with col1:
+        email = st.text_input(':blue[Email:]', 
+                        placeholder='Enter email to Update')
+        email = email.strip()
+    with col2:
+        l10n = st.selectbox("Language:", ["US", "繁中"], label_visibility="hidden")
+    if st.button("Query"):
         if not validate_email(email):
             st.warning("Please enter a valid email address")
         else:
-            user = dbm.get_user(email)
+            user = dbm.get_subscriber(email)
             if user is not None:
                 # Create a vertical display of user data
                 st.write("### User Details")
@@ -106,5 +110,48 @@ try:
                         col2.write(f"**{key.replace('_', ' ').title()}:** {value}")
             else:            
                 st.warning(f"Email '{email}' not found")
+    
+    btn4, btn5, btn6 = st.columns([5,5,5])
+    
+    with btn4:
+        if st.button("Subscribe"):
+            if not validate_email(email):
+                st.warning(f"{email} is not a valid email address")
+            else:
+                if dbm.add_subscriber(email, "token", lang=l10n):
+                    st.info(f"Subscribed {email} successfully")
+                else:
+                    st.warning(f"Failed to subscribe {email}")
+    
+    with btn5:
+        if st.button("Unsubscribe"):
+            if not validate_email(email):
+                st.warning(f"{email} is not a valid email address")
+            else:
+                if dbm.remove_subscriber(email):
+                    st.info(f"Unsubscribed {email} successfully")
+                else:
+                    st.warning(f"Failed to unsubscribe {email}")
+    
+    with btn6:
+        if st.button("Delete"):
+            if not validate_email(email):
+                st.warning(f"{email} is not a valid email address")
+            else:
+                if dbm.delete_subscriber(email):
+                    st.info(f"Deleted {email} successfully")
+                else:
+                    st.warning(f"Failed to delete {email}") 
+    
+    # --- drop table --- from here
+    st.markdown(
+    """
+    ---
+    """
+    )
+    tbl = st.selectbox("Drop Table:", [dbm.user_tbl])
+    if st.button("Drop Table"):
+        dbm.drop_table(tbl)
+        st.success(f"Dropped table: {tbl}")
 except Exception as err:
     st.error(f"Caught '{err}'. class is {type(err)}")
