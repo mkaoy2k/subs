@@ -71,27 +71,24 @@ To install prior to running the application:
    streamlit run ftpe_svr.py
    ```
 
-### For FamilyTrees Team
+### For FamilyTrees Operations Team
 
    ```bash
    # publish the journal to subscribers
    <your-subs-server-URL>/pub
 
-   # query subscribers 
-   # 1. from front-end browser
-   <your-subs-server-URL>/usrq
-   # 2. from back-end browser
-   python ops_user_query.py
+   # manage subscribers
+   # 1. from front-end browser via URL
+   <your-subs-server-URL>/user
+   # 2. from back-end browser via streamlit
+   streamlit run ops_subMgmt.py
 
-   # update subscribers
-   # 1. from front-end browser
-   <your-subs-server-URL>/usru
-   # 2. from back-end browser
-   python ops_user_update.py
-
-   # Insert/update/delete articles
-   # from back-end browser
-   python ops_article.py
+   # manage articles
+   # from back-end browser via qt5
+   python ops_artBatch.py
+   # from back-end browser via streamlit
+   streamlit run ops_artMgmt.py
+   
 
    ```
 

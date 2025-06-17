@@ -4,6 +4,8 @@
     "SUBSCRIBE" : "Subscribe",
     "UNSUBSCRIBE" : "Unsubscribe",
     "EMAIL_SUBSCRIPTION" : "Email Subscription",
+    "HTML_AUTHOR_LABEL" : "Author:",
+    "HTML_SOURCE_LABEL" : "Source:",
     "HOME_HTML_H1" : "The Owon Kaos Journal",
     "HOME_HTML_H2" : "The Owon Kaos Family",
     "HOME_HTML_MOTTO" : "After all, we are from the same African family.",
@@ -20,5 +22,6 @@
     "FAQ_Q2_H2" : "How to Download my Family Data?",
     "FAQ_Q3_H2" : "Any Cost using FamilyTrees?",
     "FAQ_Q4_H2" : "How to Donate?",
-    "FAQ_Q5_H2" : "Who Created FamilyTrees?"
+    "FAQ_Q5_H2" : "Who Created FamilyTrees?",
+    "FEEDBACK_HTML_H1" : "Family Matters Feedback"
 }

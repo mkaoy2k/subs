@@ -26,7 +26,7 @@ import pandas as pd  # pip install pandas
 import db_utils as dbm
 from email_utils import validate_email
 
-st.title("Subscriber Table Management")
+st.title("User Table Management")
 st.markdown(
     """
     ##### *Created with ❤️ by* [Michael Kao](https://github.com/mkaoy2k):sunglasses:
@@ -48,7 +48,7 @@ btn1, btn2, btn3 = st.columns([5,5,5])
 try:
     with btn1:
         if st.button("Active"):
-            users = dbm.get_subscribers(state='active')
+            users = dbm.get_subscribers(state="active")
             if users:
                 df = pd.DataFrame(users, columns=users[0].keys())
                 df = format_timestamps(df)
@@ -57,7 +57,7 @@ try:
                 st.info("No active subscribers found")    
     with btn3:
         if st.button("Inactive"):
-            users = dbm.get_subscribers(state='inactive')
+            users = dbm.get_subscribers(state="inactive")
             if users:
                 df = pd.DataFrame(users, columns=users[0].keys())
                 df = format_timestamps(df)
@@ -66,7 +66,7 @@ try:
                 st.info("No inactive subscribers found")
     with btn2:
         if st.button("Pending"):
-            users = dbm.get_subscribers(state='pending')
+            users = dbm.get_subscribers(state="pending")
             if users:
                 df = pd.DataFrame(users, columns=users[0].keys())
                 df = format_timestamps(df)
@@ -74,12 +74,13 @@ try:
             else:
                 st.info("No pending subscribers found")     
     
-    # --- update a specific ubscriber --- from here
+    # --- manage a specific subscriber --- from here
     st.markdown(
     """
     ---
     """
     )
+    st.subheader("Manage subscriber")
     col1, col2 = st.columns([5,5])
     with col1:
         email = st.text_input(':blue[Email:]', 
@@ -149,9 +150,18 @@ try:
     ---
     """
     )
-    tbl = st.selectbox("Drop Table:", [dbm.user_tbl])
-    if st.button("Drop Table"):
-        dbm.drop_table(tbl)
-        st.success(f"Dropped table: {tbl}")
+    st.subheader(f"Drop {dbm.db_tables['user']}")
+    tbl = st.selectbox("Drop Table:", [dbm.db_tables['user']])
+    if st.button(f"Drop {dbm.db_tables['user']}"):
+        st.warning(f"⚠️ Are you sure you want to drop {dbm.db_tables['user']}? This action cannot be undone!")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button(f"Yes, Drop {dbm.db_tables['user']}", type="primary"):
+                dbm.drop_table(dbm.db_tables['user'])
+                st.success(f"Successfully dropped table: {dbm.db_tables['user']}")
+                st.rerun()
+        with col2:
+            if st.button("Cancel"):
+                st.rerun()
 except Exception as err:
     st.error(f"Caught '{err}'. class is {type(err)}")

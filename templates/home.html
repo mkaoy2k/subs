@@ -20,12 +20,17 @@
 {% for article in t1_articles %}
     <h4 style="color: blue;">{{ article['title'] }}</h4>
     <div class="content-block">
-        <p>{{ article['author'] }} {{ article['source'] }}</p>
         <p>{{ article['content']|safe }}</p>
         {% if article['image_url'] %}
         <p>
             <img src="{{ article['image_url'] }}" alt="{{ article['image_alt'] }}" style="max-width: 100%; height: auto; margin: 10px 0;">
         </p>
+        {% endif %}
+        {% if article['author'] %}
+        <p>{{ author_label }} {{ article['author'] }}</p>
+        {% endif %}
+        {% if article['src_url'] %}
+        <p>{{ source_label }} <a href="{{ article['src_url'] }}" target="_blank">{{ article['source'] }}</a></p>
         {% endif %}
     </div>
     <br>
@@ -49,12 +54,17 @@
 {% for article in t3_article %}
     <h4 style="color: blue;">{{ article['title'] }}</h4>
     <div class="content-block">
-        <p>{{ article['author'] }} {{ article['source'] }}</p>
         <p>{{ article['content']|safe }}</p>
         {% if article['image_url'] %}
         <p>
             <img src="{{ article['image_url'] }}" alt="{{ article['image_alt'] }}" style="max-width: 100%; height: auto; margin: 10px 0;">
         </p>
+        {% endif %}
+        {% if article['author'] %}
+        <p>{{ author_label }} {{ article['author'] }}</p>
+        {% endif %}
+        {% if article['src_url'] %}
+        <p>{{ source_label }} <a href="{{ article['src_url'] }}" target="_blank">{{ article['source'] }}</a></p>
         {% endif %}
     </div>
     <br>

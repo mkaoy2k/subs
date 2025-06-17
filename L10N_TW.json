@@ -4,6 +4,8 @@
     "SUBSCRIBE" : "訂閱",
     "UNSUBSCRIBE" : "取消訂閱",
     "EMAIL_SUBSCRIPTION" : "電子郵件訂閱",
+    "HTML_AUTHOR_LABEL" : "作者：",
+    "HTML_SOURCE_LABEL" : "來源：",
     "HOME_HTML_H1" : "高氏渤海漚汪族譜通訊期刊",
     "HOME_HTML_H2" : "高氏渤海漚汪族譜",
     "HOME_HTML_MOTTO" : "紹繼族姓家繁延，<br>莫作最後斷種人。",
@@ -20,5 +22,6 @@
     "FAQ_Q2_H2" : "如何下載我的族譜資料？",
     "FAQ_Q3_H2" : "如何收費？",
     "FAQ_Q4_H2" : "如何贊助？",
-    "FAQ_Q5_H2" : "原創者是誰？"
+    "FAQ_Q5_H2" : "原創者是誰？",
+    "FEEDBACK_HTML_H1" : "家事投稿"
 }

@@ -22,7 +22,7 @@ Main Features:
 
 import sqlite3
 import os
-from sre_parse import State
+import datetime
 from dotenv import load_dotenv  # pip install python-dotenv
 import logging
 
@@ -36,12 +36,20 @@ log_level = os.getenv('LOGGING', 'WARNING').upper()
 log.setLevel(getattr(logging, log_level, logging.WARNING))
 
 dbn = os.getenv("DB_NAME", "data/users.db")
-user_tbl = os.getenv("TBL_USR", "user")
-article_tbl = os.getenv("TBL_ARTICLE", "article")
-States = {
+db_path = os.path.join(os.path.dirname(__file__), dbn)
+db_tables = {
+    "user": os.getenv("TBL_USR", "user"),
+    "article": os.getenv("TBL_ARTICLE", "article")
+    }
+Subscriber_State = {
     'active': 1, 
     'pending': 0,
     'inactive': -1
+    }
+Article_State = {
+    'approved': 1,
+    'pending': 0,
+    'rejected': -1
     }
 
 def get_db_connection():
@@ -54,7 +62,7 @@ def init_db():
     """Initialize the database with required tables"""
     with get_db_connection() as conn:
         # create user table via SQL
-        cmd = f"CREATE TABLE IF NOT EXISTS {user_tbl}"
+        cmd = f"CREATE TABLE IF NOT EXISTS {db_tables['user']}"
         args = """ (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
@@ -69,7 +77,7 @@ def init_db():
         conn.commit()
         
         # create article table via SQL
-        cmd = f"CREATE TABLE IF NOT EXISTS {article_tbl}"
+        cmd = f"CREATE TABLE IF NOT EXISTS {db_tables['article']}"
         args = """ (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
@@ -94,20 +102,20 @@ def add_subscriber(email, token, lang=None):
         try:
             if lang:
                 conn.execute(f'''
-                INSERT INTO {user_tbl} (email, token, is_active, l10n, created_at)
-                VALUES (?, ?, {States['pending']}, ?, CURRENT_TIMESTAMP)
+                INSERT INTO {db_tables['user']} (email, token, is_active, l10n, created_at)
+                VALUES (?, ?, {Subscriber_State['pending']}, ?, CURRENT_TIMESTAMP)
                 ON CONFLICT(email) DO UPDATE SET
-                    is_active = {States['active']},
+                    is_active = {Subscriber_State['active']},
                 token = excluded.token,
                 l10n = excluded.l10n,
                 updated_at = CURRENT_TIMESTAMP
                 ''', (email, token, lang))
             else:
                 conn.execute(f'''
-                INSERT INTO {user_tbl} (email, token, is_active, created_at)
-                VALUES (?, ?, {States['pending']}, CURRENT_TIMESTAMP)
+                INSERT INTO {db_tables['user']} (email, token, is_active, created_at)
+                VALUES (?, ?, {Subscriber_State['pending']}, CURRENT_TIMESTAMP)
                 ON CONFLICT(email) DO UPDATE SET
-                    is_active = {States['active']},
+                    is_active = {Subscriber_State['active']},
                 token = excluded.token,
                 updated_at = CURRENT_TIMESTAMP
                 ''', (email, token))
@@ -129,11 +137,11 @@ def remove_subscriber(email):
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            # Use 'inactive' state from States dictionary
-            inactive_state = States['inactive']
+            # Use 'inactive' state from Subscriber_State dictionary
+            inactive_state = Subscriber_State['inactive']
             
             cursor.execute(f'''
-            UPDATE {user_tbl} 
+            UPDATE {db_tables['user']} 
             SET is_active = ?, 
                 updated_at = CURRENT_TIMESTAMP,
                 token = NULL
@@ -155,7 +163,7 @@ def verify_token(email, token):
     """Verify subscription token"""
     with get_db_connection() as conn:
         cursor = conn.execute(f'''
-            SELECT id FROM {user_tbl} 
+            SELECT id FROM {db_tables['user']} 
             WHERE email = ? AND token = ? ''',
             (email, token)
         )
@@ -168,10 +176,10 @@ def get_subscribers(state='active', lang=None):
     
     Args:
         state (str): Filter subscribers by state. 
-                     'active' - only active subscribers (default)
-                     'inactive' - only inactive subscribers
-                     'pending' - only pending subscribers
-                     'all' - all subscribers regardless of status
+            'active' - only active subscribers (default)
+            'inactive' - only inactive subscribers
+            'pending' - only pending subscribers
+            'all' - all subscribers regardless of subscriber state and language 
     
     Returns:
         list: A list of dictionaries containing subscriber information.
@@ -187,22 +195,22 @@ def get_subscribers(state='active', lang=None):
         # Build the query based on status
         if state == 'all':
             cursor = conn.execute(f"""
-            SELECT * FROM {user_tbl} 
+            SELECT * FROM {db_tables['user']} 
             ORDER BY created_at DESC
         """)
         else:
             if lang:
                 cursor = conn.execute(f"""
-                SELECT * FROM {user_tbl} 
+                SELECT * FROM {db_tables['user']} 
                 WHERE is_active = ? AND l10n = ?
                 ORDER BY created_at DESC
-            """, (States[state], lang))
+            """, (Subscriber_State[state], lang))
             else:
                 cursor = conn.execute(f"""
-                SELECT * FROM {user_tbl} 
+                SELECT * FROM {db_tables['user']} 
                 WHERE is_active = ?
                 ORDER BY created_at DESC
-            """, (States[state],))
+            """, (Subscriber_State[state],))
         
         subscribers = [dict(row) for row in cursor.fetchall()]
         
@@ -239,7 +247,7 @@ def get_subscriber(email):
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(f"""
             SELECT * 
-            FROM {user_tbl} 
+            FROM {db_tables['user']} 
             WHERE email = ?
         """, (email,))
         
@@ -257,7 +265,7 @@ def delete_subscriber(email):
     Always return None, even if the key does not exist.
     """
     with get_db_connection() as conn:
-        cmd = f"DELETE FROM {user_tbl}" 
+        cmd = f"DELETE FROM {db_tables['user']}" 
         where = f"WHERE email='{email}'"
         sql_stmt = f"{cmd} {where}"
         try:
@@ -298,15 +306,17 @@ def get_articles(category, limit=None):
         conn.row_factory = sqlite3.Row
         if limit is None:
             cursor = conn.execute(f"""
-                SELECT * FROM {article_tbl} 
-                WHERE category = ?
-                ORDER BY updated_at DESC
+                SELECT * FROM {db_tables['article']} 
+                WHERE is_censored = 1 
+                AND category = ?
+                ORDER BY id ASC
                 """, (category,))
         elif limit > 0:
             cursor = conn.execute(f"""
-                SELECT * FROM {article_tbl} 
-                WHERE category = ?
-                ORDER BY updated_at DESC
+                SELECT * FROM {db_tables['article']} 
+                WHERE is_censored = 1 
+                AND category = ?
+                ORDER BY id ASC
                 LIMIT {limit}
                 """, (category,))
         else:
@@ -361,10 +371,11 @@ def get_articles_byDays(category, byDays=7):
     with get_db_connection() as conn:
         conn.row_factory = sqlite3.Row
         cursor = conn.execute(f"""
-            SELECT * FROM {article_tbl} 
-            WHERE category = ? 
+            SELECT * FROM {db_tables['article']} 
+            WHERE is_censored = 1
+            AND category = ? 
             AND updated_at >= ?
-            ORDER BY updated_at DESC
+            ORDER BY id ASC
         """, (category, date_str))
         
         results = cursor.fetchall()
@@ -380,39 +391,6 @@ def get_articles_byDays(category, byDays=7):
     log.debug(f"No articles found in category '{category}' from last {byDays} days")
     return None
 
-def delete_article(article_id):
-    """
-    根據文章 ID 刪除文章
-    
-    參數:
-        article_id (int): 要刪除的文章 ID
-        
-    回傳:
-        bool: 刪除成功返回 True，失敗返回 False
-    """
-    if not article_id or not isinstance(article_id, int) or article_id <= 0:
-        log.warning(f"Invalid article ID provided: {article_id}")
-        return False
-        
-    try:
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"""
-                DELETE FROM {article_tbl}
-                WHERE id = ?
-            """, (article_id,))
-            
-            if cursor.rowcount > 0:
-                conn.commit()
-                log.info(f"Successfully deleted article with ID: {article_id}")
-                return True
-            else:
-                log.warning(f"No article found with ID: {article_id}")
-                return False
-                
-    except sqlite3.Error as e:
-        log.error(f"Error deleting article with ID {article_id}: {str(e)}")
-        return False
 
 def get_article_categories():
     """
@@ -431,7 +409,7 @@ def get_article_categories():
             cursor = conn.cursor()
             cursor.execute(f"""
                 SELECT DISTINCT category 
-                FROM {article_tbl}
+                FROM {db_tables['article']}
                 ORDER BY category ASC
             """)
             
@@ -474,7 +452,7 @@ def get_article_byId(article_id):
         with get_db_connection() as conn:
             conn.row_factory = sqlite3.Row
             cursor = conn.execute(f"""
-                SELECT * FROM {article_tbl}
+                SELECT * FROM {db_tables['article']}
                 WHERE id = ?
             """, (article_id,))
             
@@ -490,15 +468,104 @@ def get_article_byId(article_id):
     except sqlite3.Error as e:
         log.error(f"Error fetching article with ID {article_id}: {str(e)}")
         return None
+    
+def approve_article(article_id, is_censored):
+    """
+    Approve an article by its ID
+    
+    Args:
+        article_id (int): The ID of the article to approve
+        
+    Returns:
+        bool: True if approval was successful, False otherwise
+    """
+    if not article_id or not isinstance(article_id, int) or article_id <= 0:
+        log.warning(f"Invalid article ID provided: {article_id}")
+        return False
+    if get_article_byId(article_id) is None:
+        log.warning(f"No article found with ID: {article_id}")
+        return False
+    if  is_censored not in Article_State.values():
+        log.warning(f"Invalid article state provided: {is_censored}")
+        return False
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                UPDATE {db_tables['article']}
+                SET is_censored = ?
+                WHERE id = ?
+            """, (is_censored, article_id))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                log.info(f"Successfully approved article with ID: {article_id}")
+                return True
+            else:
+                log.warning(f"No article found with ID: {article_id}")
+                return False
+                
+    except sqlite3.Error as e:
+        log.error(f"Error approving article with ID {article_id}: {str(e)}")
+        return False
+    
+def create_article(title, content, category, author, source, src_url=None, image_url=None, l10n='US'):
+    """
+    Create a new article in the database
+    
+    Args:
+        title (str): Article title
+        content (str): Article content (can include HTML)
+        category (str): Article category (e.g., 'News', 'Story', 'Events', 'FAQ', 'About')
+        author (str): Author's name
+        source (str): Source of the article
+        src_url (str, optional): URL to the original article
+        image_url (str, optional): URL to an image for the article
+        l10n (str, optional): Language/locale code. Defaults to 'US'.
+        
+    Returns:
+        int or None: The ID of the newly created article if successful, None otherwise
+    """
+    if not all([title, content, category, author, source]):
+        log.warning("Missing required article fields")
+        return None
+        
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                INSERT INTO {db_tables['article']} (
+                    title, content, category, author, 
+                    source, src_url, image_url, l10n,
+                    created_at, updated_at, is_censored
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                title, content, category, author,
+                source, src_url, image_url, l10n,
+                datetime.datetime.now(), 
+                datetime.datetime.now(), 
+                Article_State['pending']
+            ))
+            
+            article_id = cursor.lastrowid
+            conn.commit()
+            log.info(f"Successfully created article with ID: {article_id}")
+            return article_id
+            
+    except sqlite3.Error as e:
+        log.error(f"Error creating article: {str(e)}")
+        return None
+
+
 def delete_article(article_id):
     """
-    根據文章 ID 刪除文章
+    Delete an article by its ID
     
-    參數:
-        article_id (int): 要刪除的文章 ID
+    Args:
+        article_id (int): The ID of the article to delete
         
-    回傳:
-        bool: 刪除成功返回 True，失敗返回 False
+    Returns:
+        bool: True if deletion was successful, False otherwise
     """
     if not article_id or not isinstance(article_id, int) or article_id <= 0:
         log.warning(f"Invalid article ID provided: {article_id}")
@@ -508,7 +575,7 @@ def delete_article(article_id):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(f"""
-                DELETE FROM {article_tbl}
+                DELETE FROM {db_tables['article']}
                 WHERE id = ?
             """, (article_id,))
             
@@ -544,7 +611,7 @@ def drop_table(tbl):
                 return False
                 
             # Drop table
-            cursor.execute(f"DROP TABLE {tbl}")
+            cursor.execute(f"DROP TABLE {db_tables[tbl]}")
             conn.commit()
             log.info(f"Successfully dropped table '{tbl}'")
 

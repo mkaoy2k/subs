@@ -19,14 +19,11 @@ flask --app ops_svr run -p 5555
 
 from flask import Flask, request, redirect, render_template, flash, url_for, session, jsonify
 from flask_mail import Mail
-import secrets
 import os
 from dotenv import load_dotenv
-from db_utils import add_subscriber, get_articles, remove_subscriber, verify_token, get_subscribers, get_articles_byDays
+import db_utils as dbm
 from email_utils import validate_email, generate_verification_token, send_verification_email, send_newsletter
 from funcUtils import load_menu, load_L10N
-import subprocess
-from dotenv import load_dotenv  # Install: pip install python-dotenv
 import logging
 
 # Global variables
@@ -95,7 +92,7 @@ log.info(f"Using TLS: {app.config['MAIL_USE_TLS']}, Using SSL: {app.config['MAIL
 
 def init_globals():
     """
-    初始化全局變數
+    Initialize global variables
     """
     global g_L10N, g_L10N_options, g_loc_key, g_loc
     global g_MENU, g_menu, g_PAGE, g_home, g_faq, g_about
@@ -107,7 +104,7 @@ def init_globals():
     
     # Set FamilyTrees server endpoints
     ft_svr = os.getenv("FT_SVR", "https://crappie-on-kingfish.ngrok-free.app")
-    log.debug(f"FamilyTrees Server: {ft_svr}")    
+    log.debug(f"FamilyTreesPE Server: {ft_svr}")    
     git_ftpe = os.getenv("GIT_FTPE", "https://github.com/mkaoy2k/ftpe.git")
     log.debug(f"ftpe GitHub Server: {git_ftpe}")
     git_subs = os.getenv("GIT_SUBS", "https://github.com/mkaoy2k/subs.git")
@@ -139,7 +136,7 @@ def init_globals():
         l_home = {"News": [], "Story": [], "Events": []}
         for cat in cats:
             # get articles from last 7 days
-            articles = get_articles_byDays(cat, byDays=7)
+            articles = dbm.get_articles_byDays(cat, byDays=7)
             log.debug(f"Found {len(articles)} articles in category '{cat}' from last 7 days")
             l_home[cat] = []
             for article in articles:
@@ -152,7 +149,7 @@ def init_globals():
         l_faq = {"FAQ": []}
         for cat in cats:
             # get all articles of this category
-            articles = get_articles(cat)
+            articles = dbm.get_articles(cat)
             log.debug(f"Found {len(articles)} articles in category '{cat}'")
             for article in articles:
                 if article['l10n'] == loc:
@@ -164,7 +161,7 @@ def init_globals():
         l_about = {"About": []}
         for cat in cats:
             # get all articles of this category
-            articles = get_articles(cat)
+            articles = dbm.get_articles(cat)
             log.debug(f"Found {len(articles)} articles in category '{cat}'")
             for article in articles:
                 if article['l10n'] == loc:
@@ -184,7 +181,7 @@ def init_globals():
             g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, g_home, g_faq, g_about)
     
 def get_template_context():
-    """返回所有視圖函數共用的模板上下文"""
+    """Return template context for all view functions"""
     return {
         'menu': g_menu,
         'options': g_L10N_options,
@@ -199,7 +196,7 @@ def get_template_context():
     }    
 @app.before_request
 def before_request():
-    """在每個請求之前執行"""
+    """Execute before each request"""
     global g_loc_key, g_loc, g_menu, g_home, g_faq, g_about
     
     # Ensure current_lang exists in session
@@ -233,6 +230,8 @@ def home():
         'header': g_loc['HOME_HTML_H1'],
         't1': t1,
         't1_articles': g_home["News"],
+        'author_label': g_loc['HTML_AUTHOR_LABEL'],
+        'source_label': g_loc['HTML_SOURCE_LABEL'],
         't2': t2,
         't2_title': g_home["Story"][0]['title'],
         't2_content': g_home["Story"][0]['content'],
@@ -249,7 +248,7 @@ def home():
 
 @app.route("/faq")
 def faq():
-    """常見問題頁面"""
+    """FAQ page"""
     global g_faq
     if len(g_faq['FAQ']) < 5:
         log.debug(f"FAQ page content is not as planned: {g_faq['FAQ']}")
@@ -269,8 +268,9 @@ def faq():
 
 @app.route("/about")
 def about():
-    """關於頁面"""
+    """About page"""
     global g_about
+    
     if len(g_about['About']) < 2:
         log.debug(f"About page content is not as planned: {g_about['About']}")
         flash(f"About page content is not as planned: {g_about['About']}", 'error')
@@ -302,6 +302,71 @@ def about():
     })
     return render_template('about.html', **context)
 
+@app.route("/feedback", methods=['GET', 'POST'])
+def feedback():
+    """
+    Feedback page for article submission
+    """
+    from forms import ArticleForm
+    
+    context = get_template_context()
+    lang = session.get('current_lang', 'US')
+    
+    # Initialize form
+    form = ArticleForm()
+    
+    if form.validate_on_submit():
+        # Process the form data
+        title = form.title.data
+        content = form.content.data
+        category = form.category.data
+        l10n = form.l10n.data
+        author = form.author.data
+        source = form.source.data
+        src_url = form.source_url.data or None
+        image_url = form.image_url.data or None
+        email = form.email.data
+        if not validate_email(email):
+            log.warning(f"Invalid email address: {email}")
+            flash(f'{email} is not a valid email address', 'danger')
+            return redirect(request.referrer or url_for('home'))
+        if not dbm.get_subscriber(email):
+            log.warning(f"Subscriber not found: {email}")
+            flash(f'{email} is not a subscriber', 'danger')
+            return redirect(request.referrer or url_for('home'))
+        log.debug(f"Article form data: {form.data}")
+        log.debug(f"Article form errors: {form.errors}")
+        
+        # Create the article in the database
+        article_id = dbm.create_article(
+            title=title,
+            content=content,
+            category=category,
+            author=author,
+            source=source,
+            src_url=src_url,
+            image_url=image_url,
+            l10n=l10n
+        )
+        
+        if article_id:
+            log.debug(f"Successfully created article with ID: {article_id}")
+            flash('Your article has been submitted for review. Thank you!', 'success')
+            # Redirect to home page after successful submission
+            return redirect(url_for('home'))
+        else:
+            log.debug(f"Failed to create article")
+            flash('There was an error submitting your article. Please try again.', 'danger')
+    
+    # Get template context for rendering
+    context.update({
+        'header': g_loc['FEEDBACK_HTML_H1'],
+        'title': 'feedback',
+        'form': form,
+    })
+    
+    return render_template('feedback.html', **context)
+
 @app.route("/setL10N")
 def set_l10n():
     """
@@ -315,6 +380,8 @@ def set_l10n():
     
     if lang in g_L10N_options:
         try:
+            # reload global variables
+            init_globals()
             # Update global variables
             g_loc_key = lang
             g_loc = g_L10N[lang]
@@ -333,7 +400,9 @@ def set_l10n():
             log.error(f"Language switch error: {str(e)}")
     
     # Redirect to target page
-    if page == "about":
+    if page == "feedback":
+        return redirect(url_for('feedback'))
+    elif page == "about":
         return redirect(url_for('about'))
     elif page == "faq":
         return redirect(url_for('faq'))
@@ -362,7 +431,7 @@ def subscribe():
             token = generate_verification_token()
             # Send verification email
             if send_verification_email(mail, email, token, is_subscribe=True):
-                if add_subscriber(email, token, lang=g_loc_key):
+                if dbm.add_subscriber(email, token, lang=g_loc_key):
                     log.debug(f"Subscribed {email} with lang={g_loc_key}")
                     flash(f'Please check {email} to confirm subscription.', 'info')
                 else:
@@ -409,21 +478,21 @@ def verify_email():
     
     # Handle subscription/unsubscription
     if action == 'subscribe':
-        if add_subscriber(email, token):
+        if dbm.add_subscriber(email, token):
             log.debug(f"Subscribed {email} with lang={g_loc_key}")
             flash(f'{email} has been successfully subscribed to our newsletter!', 'success')
         else:
             flash(f'Failed to subscribe {email}. Please try again later.', 'danger')
     else:
-        remove_subscriber(email)
+        dbm.remove_subscriber(email)
         flash(f'{email} has been unsubscribed from our newsletter.', 'info')
     
     return redirect(url_for('home'))
 
 # ---- Admin tools below ----
-@app.route('/usrq')
-def user_query():
-    """Run ops_user_query.py as a subprocess to execute database queries.
+@app.route('/article')
+def article_mgmt():
+    """Run ops_artMgmt.py as a subprocess to execute database queries.
     
     Returns:
         Response: JSON response containing query results or error messages
@@ -435,7 +504,7 @@ def user_query():
     try:
         # 獲取當前腳本所在目錄
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        script_path = os.path.join(script_dir, 'ops_db_query.py')
+        script_path = os.path.join(script_dir, 'ops_artMgmt.py')
         
         # 運行腳本並不捕獲輸出
         subprocess.run(
@@ -462,9 +531,9 @@ def user_query():
         }), 'danger')
     return redirect(url_for('home'))
 
-@app.route('/usru')
-def user_update():
-    """Run ops_user_update.py as a subprocess to execute database updates.
+@app.route('/user')
+def user_mgmt():
+    """Run ops_subMgmt.py as a subprocess to execute database updates.
     
     Returns:
         Response: JSON response containing update results or error messages
@@ -511,7 +580,7 @@ def pub_newsletter():
     """
     global g_loc, g_home, g_loc_key
     
-    users = get_subscribers(state='active', lang=g_loc_key)
+    users = dbm.get_subscribers(state='active', lang=g_loc_key)
     if not users:  # Handles both None and empty list
         flash('No active subscribers found', 'warning')
         return redirect(url_for('home'))
@@ -558,7 +627,7 @@ def main():
     
     Start Flask server
     """
-    log.info("Starting FamilyTreesSubs server...")
+    log.info("Starting FamilyTreesOps server...")
     # app.run(host='0.0.0.0', port=5555, use_reloader=False)
     app.run(port=5555, debug=True, use_reloader=True)
 

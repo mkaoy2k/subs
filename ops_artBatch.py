@@ -439,7 +439,7 @@ def main():
     app = QApplication(sys.argv)
     
     # Create and show main window
-    window = DatabaseViewer(dbm.dbn, dbm.article_tbl)
+    window = DatabaseViewer(dbm.dbn, dbm.db_tables['article'])
     window.show()
     
     # Enter application main event loop
