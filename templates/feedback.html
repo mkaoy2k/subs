@@ -1,11 +1,30 @@
 {% extends "layout.html" %}
 
 {% block content %}
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Alex+Brush&display=swap');
+    .spencerian-header {
+        font-family: 'Alex Brush', cursive;
+        font-size: 1.5rem;
+        font-weight: 500;
+        color: black;
+        line-height: 1.2;
+    }
+    .content-section {
+        background-color: rgb(232, 228, 167); /* Light khaki background */
+        padding: 20px;
+        border-radius: 5px;
+        color: black; /* Black text for better contrast */
+    }
+    .form-control-label, .form-text {
+        color: rgba(29, 18, 227, 0.41) !important; /* Ensure form labels are visible */
+    }
+</style>
 <div class="content-section">
     <form method="POST" action="" enctype="multipart/form-data">
         {{ form.hidden_tag() }}
         <fieldset class="form-group">
-            <legend class="border-bottom mb-4">{{ header }}</legend>
+            <legend class="border-bottom mb-4 spencerian-header">{{ header }}</legend>
             
             <div class="form-group">
                 {{ form.title.label(class="form-control-label") }}

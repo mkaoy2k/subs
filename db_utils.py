@@ -23,6 +23,7 @@ Main Features:
 import sqlite3
 import os
 import datetime
+from email_utils import validate_email
 from dotenv import load_dotenv  # pip install python-dotenv
 import logging
 
@@ -61,22 +62,30 @@ def get_db_connection():
 def init_db():
     """Initialize the database with required tables"""
     with get_db_connection() as conn:
-        # create user table via SQL
+        # Enable foreign keys and set datetime format
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = NORMAL")
+        conn.execute("PRAGMA temp_store = MEMORY")
+        
+        # Create user table with explicit timestamp format
         cmd = f"CREATE TABLE IF NOT EXISTS {db_tables['user']}"
         args = """ (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
             is_active INTEGER DEFAULT 0,
             l10n TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            token TEXT
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            token TEXT,
+            is_admin INTEGER DEFAULT 0,
+            password_hash TEXT,
+            salt TEXT
         )"""
         sql_stmt = f"{cmd} {args}"
         conn.execute(sql_stmt)
-        conn.commit()
         
-        # create article table via SQL
+        # Create article table with explicit timestamp format
         cmd = f"CREATE TABLE IF NOT EXISTS {db_tables['article']}"
         args = """ (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -88,11 +97,39 @@ def init_db():
             src_url TEXT,
             image_url TEXT,
             l10n TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now')),
+            is_censored INTEGER DEFAULT 0
         )"""
         sql_stmt = f"{cmd} {args}"
         conn.execute(sql_stmt)
+        
+        # Create triggers to automatically update the updated_at timestamp
+        for table_name in [db_tables['user'], db_tables['article']]:
+            # First drop the trigger if it exists
+            try:
+                conn.execute(f"DROP TRIGGER IF EXISTS update_{table_name}_timestamp")
+            except sqlite3.OperationalError as e:
+                if "no such table" not in str(e):
+                    raise
+            
+            # Create the new trigger
+            trigger_sql = f"""
+            CREATE TRIGGER update_{table_name}_timestamp
+            AFTER UPDATE ON {table_name}
+            FOR EACH ROW
+            BEGIN
+                UPDATE {table_name} 
+                SET updated_at = datetime('now')
+                WHERE rowid = NEW.rowid;
+            END;
+            """
+            try:
+                conn.execute(trigger_sql)
+            except sqlite3.OperationalError as e:
+                if "already exists" not in str(e):
+                    raise
+        
         conn.commit()
 
 def add_subscriber(email, token, lang=None):
@@ -260,20 +297,88 @@ def get_subscriber(email):
     log.debug(f"No user found with email: {email}")
     return None
 
+def delete_user(user_id):
+    """
+    Delete a user by their ID.
+    
+    Args:
+        user_id (int): The ID of the user to delete
+        
+    Returns:
+        bool: True if deletion was successful, False otherwise
+    """
+    if not isinstance(user_id, int) or user_id <= 0:
+        log.error(f"Invalid user ID provided for deletion: {user_id}")
+        return False
+        
+    with get_db_connection() as conn:
+        try:
+            # Use parameterized query to prevent SQL injection
+            sql = f"DELETE FROM {db_tables['user']} WHERE id = ?"
+            log.debug(f"Executing: {sql} with user_id: {user_id}")
+            
+            cursor = conn.cursor()
+            cursor.execute(sql, (user_id,))
+            rows_affected = cursor.rowcount
+            conn.commit()  # Commit the transaction
+            
+            if rows_affected > 0:
+                log.info(f"Successfully deleted user with ID: {user_id}")
+                return True
+            else:
+                log.warning(f"No user found with ID: {user_id}")
+                return False
+                
+        except sqlite3.Error as e:
+            log.error(f"Database error while deleting user ID {user_id}: {str(e)}")
+            conn.rollback()
+            return False
+        except Exception as e:
+            log.error(f"Unexpected error while deleting user ID {user_id}: {str(e)}")
+            conn.rollback()
+            return False
+
 def delete_subscriber(email):
     """
-    Always return None, even if the key does not exist.
+    Delete a subscriber by email. 
+    In fact, any user record can be deleted.
+    
+    Args:
+        email (str): The email address of the subscriber to delete
+        
+    Returns:
+        bool: True if deletion was successful, False otherwise
     """
+    if not email:
+        log.error("No email provided for deletion")
+        return False
+        
     with get_db_connection() as conn:
-        cmd = f"DELETE FROM {db_tables['user']}" 
-        where = f"WHERE email='{email}'"
-        sql_stmt = f"{cmd} {where}"
         try:
+            # Use parameterized query to prevent SQL injection
+            sql = f"DELETE FROM {db_tables['user']} WHERE email = ?"
+            log.debug(f"Executing: {sql} with email: {email}")
+            
             cursor = conn.cursor()
-            cursor.execute(f"{sql_stmt}")
-            log.debug(f"{sql_stmt}")
-        except Exception as err:
-            log.error(f"Caught '{err}'. class is {type(err)}")
+            cursor.execute(sql, (email,))
+            rows_affected = cursor.rowcount
+            conn.commit()  # Commit the transaction
+            
+            if rows_affected > 0:
+                log.info(f"Successfully deleted subscriber: {email}")
+                return True
+            else:
+                log.warning(f"No subscriber found with email: {email}")
+                return False
+                
+        except sqlite3.Error as e:
+            log.error(f"Database error while deleting subscriber {email}: {str(e)}")
+            conn.rollback()
+            return False
+        except Exception as e:
+            log.error(f"Unexpected error while deleting subscriber {email}: {str(e)}")
+            conn.rollback()
+            return False
 
 def get_articles(category, limit=None):
     """
@@ -338,7 +443,8 @@ def get_articles(category, limit=None):
 
 def get_articles_byDays(category, byDays=7):
     """
-    Retrieve articles from the last N days by category
+    Retrieve articles from the last N days by category,
+    sorted by updated_at in descending order
     
     Args:
         category (str): Article category to filter by
@@ -375,7 +481,7 @@ def get_articles_byDays(category, byDays=7):
             WHERE is_censored = 1
             AND category = ? 
             AND updated_at >= ?
-            ORDER BY id ASC
+            ORDER BY updated_at DESC
         """, (category, date_str))
         
         results = cursor.fetchall()
@@ -391,7 +497,41 @@ def get_articles_byDays(category, byDays=7):
     log.debug(f"No articles found in category '{category}' from last {byDays} days")
     return None
 
-
+def get_article_languages():
+    """
+    Retrieve all unique language codes (l10n) from articles
+    
+    Returns:
+        list: A list of all unique language codes, sorted alphabetically
+        
+    Example:
+        >>> languages = get_article_languages()
+        >>> print(languages)
+        ['en', 'zh', 'ja']
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""
+                SELECT DISTINCT l10n 
+                FROM {db_tables['article']}
+                WHERE l10n IS NOT NULL
+                ORDER BY l10n ASC
+            """)
+            
+            # Extract the language codes from the query results
+            languages = [row[0] for row in cursor.fetchall() if row[0]]
+            
+            log.debug(f"Found {len(languages)} unique language codes")
+            return languages
+            
+    except sqlite3.Error as e:
+        log.error(f"Error retrieving article languages: {e}")
+        return []
+    except Exception as e:
+        log.error(f"Unexpected error in get_article_languages: {e}")
+        return []
+    
 def get_article_categories():
     """
     Retrieve all unique article categories
@@ -467,6 +607,55 @@ def get_article_byId(article_id):
             
     except sqlite3.Error as e:
         log.error(f"Error fetching article with ID {article_id}: {str(e)}")
+        return None
+
+def get_next_article(article_id, is_censored=Article_State['pending']):
+    """
+    Retrieve the next article to be approved
+    
+    Args:
+        is_censored (int): The state of the article to retrieve
+        
+    Returns:
+        dict: A dictionary containing the article information, or None if not found.
+              The dictionary includes the following keys:
+              - id: Article ID
+              - title: Article title
+              - content: Article content
+              - category: Article category
+              - author: Author name
+              - source: Source of the article
+              - src_url: Source URL
+              - image_url: URL of the article's image
+              - l10n: Language/locale
+              - created_at: Creation timestamp
+              - updated_at: Last update timestamp
+    """
+    if not isinstance(is_censored, int) or is_censored not in Article_State.values():
+        log.warning(f"Invalid article state provided: {is_censored}")
+        return None
+    try:
+        with get_db_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(f"""
+                SELECT * FROM {db_tables['article']}
+                WHERE is_censored = ?
+                AND id >= ?
+                ORDER BY id ASC
+                LIMIT 1
+            """, (is_censored, article_id))
+            
+            result = cursor.fetchone()
+            if result:
+                article = dict(result)
+                log.debug(f"Found article with ID: {article['id']}")
+                return article['id'], article
+                
+            log.debug(f"No article found with state: {is_censored}")
+            return None
+            
+    except sqlite3.Error as e:
+        log.error(f"Error fetching article with state {is_censored}: {str(e)}")
         return None
     
 def approve_article(article_id, is_censored):

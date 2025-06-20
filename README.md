@@ -1,105 +1,126 @@
-# subs - FamilyTrees newsletter subscription service on FamilyTrees platform
+# 📰 家庭樹電子報訂閱系統 (FamilyTreesOps, subs in short)
 
-## Introduction
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
----
+## 📖 專案介紹
 
-The 'subs' Web App is a web service that allows you publish and subscribe/unsubscribe to your family news and events.
+FamilyTreesOps 電子報訂閱系統是一個專為家庭設計的網路服務，讓家庭成員能夠輕鬆訂閱和接收家庭相關新聞與活動資訊。系統提供完整的前後端服務，包括訂閱管理、內容發布和用戶驗證等功能。
 
-## How It Works
+### ✨ 主要功能
 
----
+- **會員系統**
+  - 編輯者安全登入與註冊
+  - 訂閱者開放註冊
+  - 電子郵件驗證
+  - 密碼重設與管理
 
-The 'subs' service provides a front-end for family members to keep in the loop on what's new to your family-related matters. At the backend for your family newsletter team to maintain the publication of family matters whereas the family members can subscribe/unsubscribe to the family news as needed.
+- **內容管理**
+  - 電子報發布與管理
+  - 訂閱狀態追蹤
+  - 內容審核系統
+  - 用戶反饋收集
 
-### Key Features
+- **多語言支援**
+  - 繁體中文 (預設)
+  - 英文 (美國)
+  - 可輕鬆擴充其他語言
 
-1. **Keep in the loop with your family social circle**
-   - Secure login and registration
-   - Email verification
-   - Password reset functionality
+## 🚀 快速開始
 
-2. **Publication Management**
-   - Manage user subscriptions
-   - Track subscription status
-   - Handle newsletter updates
+### 系統需求
 
-3. **Multi-language Support**
-   - Currently supports Traditional Chinese (TW) and English (US)
-   - Easy to add more languages
+- Python 3.8 或更新版本
+- SQLite 3 (內建)
+- 電子郵件服務 (如 Gmail)
 
-## Dependencies and Installation
+### 安裝步驟
 
----
-
-To install prior to running the application:
-
-1. Clone the repository:
+1. **克隆儲存庫**
 
    ```bash
    git clone https://github.com/mkaoy2k/subs.git
    cd subs
    ```
 
-2. Install dependencies:
+2. **建立虛擬環境 (建議)**
+
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate  # Linux/Mac
+   # 或
+   .\.venv\Scripts\activate  # Windows
+   ```
+
+3. **安裝相依套件**
 
    ```bash
    pip install -r requirements.txt
    ```
 
-3. Configure environment variables in `.env`:
+4. **設定環境變數**
 
    ```bash
    cp template.env.txt .env
    ```
 
-   - Update the environment variables in `.env` file accordingly.
+   編輯 `.env` 檔案，根據您的環境進行設定：
+   - 設定資料庫路徑
+   - 配置電子郵件服務
+   - 設定應用程式金鑰
+   - 配置伺服器網址
 
-4. Create a subdirectory, named `data` in the root directory of the project.
-
-## Usage
-
-### Running the subs server
-
-   ```bash
-   python ops_svr.py
-   ```
-
-### Running the ftpe server
+5. **初始化資料目錄**
 
    ```bash
-   streamlit run ftpe_svr.py
+   mkdir -p data
    ```
 
-### For FamilyTrees Operations Team
+## 🛠️ 執行系統
 
-   ```bash
-   # publish the journal to subscribers
-   <your-subs-server-URL>/pub
+### 啟動後端伺服器
 
-   # manage subscribers
-   # 1. from front-end browser via URL
-   <your-subs-server-URL>/user
-   # 2. from back-end browser via streamlit
-   streamlit run ops_subMgmt.py
+```bash
+python ops_svr.py
+```
 
-   # manage articles
-   # from back-end browser via qt5
-   python ops_artBatch.py
-   # from back-end browser via streamlit
-   streamlit run ops_artMgmt.py
-   
+### 啟動管理介面 (編輯者使用)
 
-   ```
+```bash
+streamlit run admin_ui.py
+```
 
-## License
+## ⚙️ 環境變數說明
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+| 變數名稱 | 說明 | 範例 |
+|---------|------|------|
+| `DB_SVR` | 資料庫伺服器類型 | `sqlite3` |
+| `DB_NAME` | 資料庫檔案路徑 | `data/users.db` |
+| `MAIL_SERVER` | 郵件伺服器 | `smtp.gmail.com` |
+| `MAIL_USERNAME` | 郵件帳號 | `your-email@gmail.com` |
+| `MAIL_PASSWORD` | 郵件密碼或應用程式密碼 | `your-password` |
+| `APP_NAME` | 應用程式名稱 | `FamilyTrees` |
+| `SECRET_KEY` | 應用程式密鑰 | 隨機字串 |
+| `BASE_URL` | 應用程式網址 | `http://localhost:5000` |
+| `L10N` | 預設語言 | `繁中` 或 `US` |
 
-## Support
+## 🤝 貢獻指南
 
-For support, please contact [Michael Kao](mailto:mkaoy2k@gmail.com).
+歡迎提交 Pull Request 來改進這個專案！請遵循以下步驟：
 
-## Contributing
+1. Fork 儲存庫
+2. 建立功能分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交您的修改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 開啟 Pull Request
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## 📄 授權
+
+本專案採用 [MIT](LICENSE) 授權條款
+
+## 📬 聯絡我們
+
+如有任何問題或建議，請聯繫：
+
+- [Michael Kao](mailto:mkaoy2k@gmail.com)
+- [GitHub Issues](https://github.com/mkaoy2k/subs/issues)

@@ -185,6 +185,7 @@ def get_template_context():
     return {
         'menu': g_menu,
         'options': g_L10N_options,
+        'release': g_loc['RELEASE'],
         'settings': g_loc['SETTINGS'],
         'your_language': g_loc['YOUR_LANGUAGE'],
         'subscribe': g_loc['SUBSCRIBE'],
@@ -227,6 +228,7 @@ def home():
     t3 = g_loc['HOME_HTML_T3']
     
     context.update({
+        'release': g_loc['RELEASE'],
         'header': g_loc['HOME_HTML_H1'],
         't1': t1,
         't1_articles': g_home["News"],
@@ -256,6 +258,7 @@ def faq():
         return redirect(url_for('home'))
     context = get_template_context()
     context.update({
+        'release': g_loc['RELEASE'],
         'header': g_loc['FAQ_HTML_H1'],
         'questions': [article['title'] for article in g_faq["FAQ"]],
         'answers': [article['content'] for article in g_faq["FAQ"]],
@@ -292,6 +295,7 @@ def about():
             body[1] = article['content']
             log.debug(f"Found repository article. Content length: {len(body[1])} chars")
     context.update({
+        'release': g_loc['RELEASE'],
         'header': g_loc['ABOUT_HTML_H1'],
         'introduction': g_loc['ABOUT_INTRODUCTION_H2'],
         'repository': g_loc['ABOUT_REPOSITORY_H2'],
@@ -312,8 +316,8 @@ def feedback():
     context = get_template_context()
     lang = session.get('current_lang', 'US')
     
-    # Initialize form
-    form = ArticleForm()
+    # Initialize form with current language
+    form = ArticleForm(lang=lang)
     
     if form.validate_on_submit():
         # Process the form data
@@ -328,12 +332,23 @@ def feedback():
         email = form.email.data
         if not validate_email(email):
             log.warning(f"Invalid email address: {email}")
-            flash(f'{email} is not a valid email address', 'danger')
+            flash(f'{g_loc.get("EMAIL_INVALID", "Invalid email address")}', 'danger')
             return redirect(request.referrer or url_for('home'))
-        if not dbm.get_subscriber(email):
-            log.warning(f"Subscriber not found: {email}")
-            flash(f'{email} is not a subscriber', 'danger')
-            return redirect(request.referrer or url_for('home'))
+        
+        # Check if user is a subscriber, if not add them as pending
+        subscriber = dbm.get_subscriber(email)
+        if not subscriber:
+            log.info(f"New subscriber detected: {email}, adding to pending")
+            if not dbm.add_subscriber(email, 'pending_verification', lang=lang):
+                log.error(f"Failed to add new subscriber: {email}")
+                flash(f'{g_loc.get("ADD_SUB_ERROR", "Subscriber not created/updated. Please subscribe again later.")}', 'danger')
+                return redirect(request.referrer or url_for('home'))
+            flash(f'{g_loc.get("EMAIL_SUB_NEEDED", "Please subscribe with your email before submitting articles.")}', 'danger')
+            return redirect(url_for('feedback'))
+        elif subscriber.get('is_active') != dbm.Subscriber_State['active']:  # Check if subscriber is not active
+            log.warning(f"Non-active subscriber attempted submission: {email}")
+            flash(f'{g_loc.get("EMAIL_CONFIRM_NEEDED", "Please confirm your email {email} before submitting content.")}', 'danger')
+            return redirect(url_for('feedback'))
         log.debug(f"Article form data: {form.data}")
         log.debug(f"Article form errors: {form.errors}")
         
@@ -351,16 +366,15 @@ def feedback():
         
         if article_id:
             log.debug(f"Successfully created article with ID: {article_id}")
-            flash('Your article has been submitted for review. Thank you!', 'success')
-            # Redirect to home page after successful submission
+            flash(f'{g_loc.get("ARTICLE_SUCCESS", "Submitted successfully")}', 'success')            # Redirect to home page after successful submission
             return redirect(url_for('home'))
         else:
             log.debug(f"Failed to create article")
-            flash('There was an error submitting your article. Please try again.', 'danger')
+            flash(f'{g_loc.get("ARTICLE_RETRY", "Article not created. Please re-submit later.")}', 'danger')
     
     # Get template context for rendering
     context.update({
-        'header': g_loc['FEEDBACK_HTML_H1'],
+        'header': g_loc.get('FEEDBACK_HTML_H1', 'Submit Feedback'),
         'title': 'feedback',
         'form': form,
     })
@@ -453,7 +467,6 @@ def subscribe():
     
     return redirect(request.referrer or url_for('home'))
 
-
 @app.route('/verify-email')
 def verify_email():
     """
@@ -490,88 +503,6 @@ def verify_email():
     return redirect(url_for('home'))
 
 # ---- Admin tools below ----
-@app.route('/article')
-def article_mgmt():
-    """Run ops_artMgmt.py as a subprocess to execute database queries.
-    
-    Returns:
-        Response: JSON response containing query results or error messages
-    """
-    import subprocess
-    import json
-    import os
-    
-    try:
-        # 獲取當前腳本所在目錄
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        script_path = os.path.join(script_dir, 'ops_artMgmt.py')
-        
-        # 運行腳本並不捕獲輸出
-        subprocess.run(
-            ['.venv/bin/streamlit', 'run', script_path],
-            capture_output=False,
-            text=True,
-            check=True
-        )
-            
-    except subprocess.CalledProcessError as e:
-        flash(jsonify({
-            'status': 'error',
-            'message': 'Script execution failed',
-            'error': str(e),
-            'stdout': e.stdout,
-            'stderr': e.stderr
-        }), 'danger')
-        
-    except Exception as e:
-        flash(jsonify({
-            'status': 'error',
-            'message': 'An unexpected error occurred',
-            'error': str(e)
-        }), 'danger')
-    return redirect(url_for('home'))
-
-@app.route('/user')
-def user_mgmt():
-    """Run ops_subMgmt.py as a subprocess to execute database updates.
-    
-    Returns:
-        Response: JSON response containing update results or error messages
-    """
-    import subprocess
-    import json
-    import os
-    
-    try:
-        # 獲取當前腳本所在目錄
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        script_path = os.path.join(script_dir, 'ops_subMgmt.py')
-        
-        # Run script and capture output
-        subprocess.run(
-            ['.venv/bin/streamlit', 'run', script_path],
-            capture_output=False,
-            text=True,
-            check=True
-        )
-            
-    except subprocess.CalledProcessError as e:
-        flash(jsonify({
-            'status': 'error',
-            'message': 'Update script execution failed',
-            'error': str(e),
-            'stdout': e.stdout,
-            'stderr': e.stderr
-        }), 'danger')
-        
-    except Exception as e:
-        flash(jsonify({
-            'status': 'error',
-            'message': 'An unexpected error occurred during update',
-            'error': str(e)
-        }), 'danger')
-    
-    return redirect(url_for('home'))
 
 @app.route('/pub')
 def pub_newsletter():
@@ -579,15 +510,32 @@ def pub_newsletter():
     retrieve active subscribers' emails from db and send newsletter
     """
     global g_loc, g_home, g_loc_key
-    
-    users = dbm.get_subscribers(state='active', lang=g_loc_key)
+    lang = request.args.get('lang', g_loc_key)
+    if lang not in g_L10N_options:
+        lang = g_loc_key
+        
+    # reload global variables
+    init_globals()
+    # Update global variables
+    g_loc_key = lang
+    g_loc = g_L10N[lang]
+            
+    # Update page content
+    key = g_L10N_options.index(lang)
+            
+    # Save to session
+    session['current_lang'] = lang
+    users = dbm.get_subscribers(state='active', lang=lang)
     if not users:  # Handles both None and empty list
-        flash('No active subscribers found', 'warning')
+        log.debug(f"No active subscribers found for language: {lang}")
+        flash(f'{g_loc.get("NO_ACTIVE_SUBSCRIBERS", "No active subscribers found")}', 'warning')
         return redirect(url_for('home'))
         
     emails = [user['email'] for user in users if user and 'email' in user]
-    if not emails:  # In case all users in the list are invalid or missing email
-        flash('No valid email addresses found', 'warning')
+    if not emails:  
+        # In case all users in the list are invalid or missing email
+        log.debug(f"No valid emails found for language: {lang}")
+        flash(f'{g_loc.get("NO_EMAILS_FOUND", "No valid emails found")}', 'danger')
         return redirect(url_for('home'))
 
     context = get_template_context()
@@ -614,11 +562,14 @@ def pub_newsletter():
     
     try:
         if send_newsletter(mail, emails, context):
-            flash('Newsletter sent successfully', 'success')
+            log.debug(f"Newsletter sent successfully for language: {lang}")
+            flash(f'{g_loc.get("PUB_HTML_SUCCESS", "Newsletter sent successfully.")}', 'success')
         else:
-            flash('Newsletter sent failed', 'danger')
+            log.debug(f"Newsletter sent failed for language: {lang}")
+            flash(f'{g_loc.get("PUB_HTML_FAIL", "Newsletter sent failed, please try later")}', 'danger')
     except Exception as e:
-        flash('Newsletter sent failed', 'danger')
+        log.debug(f"Newsletter sent failed for language: {lang}")
+        flash(f'{g_loc.get("PUB_HTML_FAIL", "Newsletter sent failed.")}', 'danger')
     return redirect(url_for('home'))    
 
 def main():
