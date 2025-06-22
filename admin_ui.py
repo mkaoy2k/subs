@@ -60,12 +60,6 @@ def show_admin_sidebar():
                 unsafe_allow_html=True
             )
         
-        # Navigation
-        st.page_link("pages/4_stats.py", label="Statistics", icon="📊")
-        st.page_link("pages/2_artMgmt.py", label="Article Management", icon="📝")
-        st.page_link("pages/1_usrMgmt.py", label="User Management", icon="👥")
-        st.page_link("pages/5_settings.py", label="Settings", icon="⚙️")
-        
         # Sidebar - Admin User Management
         st.markdown("---")
         st.subheader("Admin User Management")

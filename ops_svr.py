@@ -120,6 +120,10 @@ def init_globals():
     g_loc = g_L10N[g_loc_key]
     log.debug(f"L10N='{g_loc_key}'...")
     
+    # Load Application settings
+    article_window = int(os.getenv("ARTICLE_WINDOW", "7"))
+    log.debug(f"ARTICLE_WINDOW: {article_window}")
+    
     # Load menu
     f_menu = os.getenv("OPS_MENU_FILE")
     g_MENU = load_menu(f_menu)
@@ -135,9 +139,9 @@ def init_globals():
         cats = ["News", "Story", "Events"]
         l_home = {"News": [], "Story": [], "Events": []}
         for cat in cats:
-            # get articles from last 7 days
-            articles = dbm.get_articles_byDays(cat, byDays=7)
-            log.debug(f"Found {len(articles)} articles in category '{cat}' from last 7 days")
+            # get articles within the window
+            articles = dbm.get_articles_byDays(cat, byDays=article_window)
+            log.debug(f"Found {len(articles)} articles in category '{cat}' from last {article_window} days")
             l_home[cat] = []
             for article in articles:
                 if article['l10n'] == loc:
@@ -227,20 +231,36 @@ def home():
     t2 = g_loc['HOME_HTML_T2']
     t3 = g_loc['HOME_HTML_T3']
     
+    # 檢查 Story 是否有內容，如果沒有則使用預設值
+    story_data = {
+        't2_title': g_loc['HOME_HTML_NO_STORY_TITLE'],
+        't2_content': g_loc['HOME_HTML_NO_STORY_CONTENT'],
+        't2_image': '',
+        't2_image_alt': ''
+    }
+    
+    if g_home["Story"] and len(g_home["Story"]) > 0:
+        story_data = {
+            't2_title': g_home["Story"][0].get('title', g_loc['HOME_HTML_NO_STORY_TITLE']),
+            't2_content': g_home["Story"][0].get('content', g_loc['HOME_HTML_NO_STORY_CONTENT']),
+            't2_image': g_home["Story"][0].get('image_url', ''),
+            't2_image_alt': g_home["Story"][0].get('image_alt', '')
+        }
+    
     context.update({
         'release': g_loc['RELEASE'],
         'header': g_loc['HOME_HTML_H1'],
         't1': t1,
-        't1_articles': g_home["News"],
+        't1_articles': g_home.get("News", []),
         'author_label': g_loc['HTML_AUTHOR_LABEL'],
         'source_label': g_loc['HTML_SOURCE_LABEL'],
         't2': t2,
-        't2_title': g_home["Story"][0]['title'],
-        't2_content': g_home["Story"][0]['content'],
-        't2_image': g_home["Story"][0].get('image_url', ''),
-        't2_image_alt': g_home["Story"][0].get('image_alt', ''),
+        't2_title': story_data['t2_title'],
+        't2_content': story_data['t2_content'],
+        't2_image': story_data['t2_image'],
+        't2_image_alt': story_data['t2_image_alt'],
         't3': t3,
-        't3_article': g_home["Events"],
+        't3_article': g_home.get("Events", []),
         't4_greeting': g_loc['HOME_HTML_T4_GREETING'],
         't4_team': g_loc['HOME_HTML_T4_TEAM'],
         'ft_url': ft_svr,
@@ -579,8 +599,8 @@ def main():
     Start Flask server
     """
     log.info("Starting FamilyTreesOps server...")
-    # app.run(host='0.0.0.0', port=5555, use_reloader=False)
-    app.run(port=5555, debug=True, use_reloader=True)
+    app.run(host='0.0.0.0', port=5555, use_reloader=False)
+    # app.run(port=5555, debug=True, use_reloader=True)
 
 # Initialize global variables
 init_globals()

@@ -76,6 +76,12 @@ FamilyTreesOps 電子報訂閱系統是一個專為家庭設計的網路服務�
    mkdir -p data
    ```
 
+6. **初始化資料庫**
+
+   ```bash
+   python genesis.py
+   ```
+
 ## 🛠️ 執行系統
 
 ### 啟動後端伺服器
@@ -92,17 +98,25 @@ streamlit run admin_ui.py
 
 ## ⚙️ 環境變數說明
 
-| 變數名稱 | 說明 | 範例 |
-|---------|------|------|
-| `DB_SVR` | 資料庫伺服器類型 | `sqlite3` |
-| `DB_NAME` | 資料庫檔案路徑 | `data/users.db` |
-| `MAIL_SERVER` | 郵件伺服器 | `smtp.gmail.com` |
-| `MAIL_USERNAME` | 郵件帳號 | `your-email@gmail.com` |
-| `MAIL_PASSWORD` | 郵件密碼或應用程式密碼 | `your-password` |
-| `APP_NAME` | 應用程式名稱 | `FamilyTrees` |
-| `SECRET_KEY` | 應用程式密鑰 | 隨機字串 |
-| `BASE_URL` | 應用程式網址 | `http://localhost:5000` |
-| `L10N` | 預設語言 | `繁中` 或 `US` |
+| 變數名稱 | 說明 | 範例 | 必填 |
+|---------|------|------|------|
+| `DB_SVR` | 資料庫伺服器類型 | `sqlite3` | 是 |
+| `DB_NAME` | 資料庫檔案路徑 | `data/users.db` | 是 |
+| `DB_ADMIN` | 管理員電子郵件 | `admin@example.com` | 是 |
+| `DB_ADMIN_PW` | 管理員密碼 | `your-secure-password` | 是 |
+| `OPS_SVR` | Operations 伺服器網址 | `http://localhost:5000` | 是 |
+| `FT_SVR` | FamilyTreesPE 伺服器網址 | `http://example.com` | 是 |
+| `MAIL_SERVER` | 郵件伺服器 | `smtp.gmail.com` | 是 |
+| `MAIL_USERNAME` | 郵件帳號 | `your-email@gmail.com` | 是 |
+| `MAIL_PASSWORD` | 郵件密碼或應用程式密碼 | `your-app-password` | 是 |
+| `MAIL_DEFAULT_SENDER` | 預設寄件者 | `your-email@gmail.com` | 是 |
+| `APP_NAME` | 應用程式名稱 | `FamilyTreesOps` | 是 |
+| `SECRET_KEY` | 應用程式密鑰 | 隨機字串 | 是 |
+| `BASE_URL` | 應用程式網址 | `http://localhost:5000` | 是 |
+| `ARTICLE_WINDOW` | 文章顯示天數 | `7` | 否 |
+| `L10N` | 預設語言 | `繁中` 或 `US` | 否 |
+| `LOGGING` | 日誌等級 | `INFO` 或 `DEBUG` | 否 |
+| `OPS_MENU_FILE` | 選單設定檔 | `ops_menu.json` | 是 |
 
 ## 🤝 貢獻指南
 

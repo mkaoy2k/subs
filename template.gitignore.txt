@@ -18,6 +18,7 @@ pyproject.toml
 # FamilyTrees Obsolete files
 config.yaml
 L10N*.py
+test*.py
 family_*.py
 prod_*.sh
 
@@ -29,7 +30,6 @@ wip.py
 /data/*.csv
 /data/*.gv
 /data/*.png
-/data/*.db
 
 # Streamlit Examples
 main.py
