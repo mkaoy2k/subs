@@ -18,7 +18,10 @@ ENABLE_MAINTENANCE = False
 SITE_TITLE = "Admin DBM"
 
 # Language Settings
-LANGUAGE = dbm.get_article_languages()
+if dbm.get_article_languages():
+    LANGUAGE = dbm.get_article_languages()[0]
+else:
+    LANGUAGE = "US"
 
 # Email Settings
 EMAIL_NOTIFICATIONS = True
