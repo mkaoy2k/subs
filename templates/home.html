@@ -46,6 +46,12 @@
         <img src="{{ t2_image }}" alt="{{ t2_image_alt }}" style="max-width: 100%; height: auto; margin: 10px 0;">
     </p>
 {% endif %}
+{% if t2_author %}
+    <p>{{ author_label }} {{ t2_author }}</p>
+{% endif %}
+{% if t2_src_url %}
+    <p>{{ source_label }} <a href="{{ t2_src_url }}" target="_blank">{{ t2_source }}</a></p>
+{% endif %}
 </div>
 <br>
 

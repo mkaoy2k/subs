@@ -66,7 +66,7 @@ log.addHandler(console_handler)
 log.propagate = False
 
 # Add after Flask app initialization
-app = Flask(__name__)
+app = Flask(__name__, template_folder='templates')
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-for-testing')  # Set a secure key in production environment
 
 # Configure Flask-Mail with SSL on port 465
@@ -133,7 +133,6 @@ def init_globals():
     g_PAGE = {}
     for idx, loc in enumerate(g_L10N_options):
         l_page = {}
-        l_loc = g_L10N[loc]
         
         # Initialize home page from here
         cats = ["News", "Story", "Events"]
@@ -236,7 +235,10 @@ def home():
         't2_title': g_loc['HOME_HTML_NO_STORY_TITLE'],
         't2_content': g_loc['HOME_HTML_NO_STORY_CONTENT'],
         't2_image': '',
-        't2_image_alt': ''
+        't2_image_alt': '',
+        't2_author': '',
+        't2_src_url': '',
+        't2_source': ''
     }
     
     if g_home["Story"] and len(g_home["Story"]) > 0:
@@ -244,7 +246,10 @@ def home():
             't2_title': g_home["Story"][0].get('title', g_loc['HOME_HTML_NO_STORY_TITLE']),
             't2_content': g_home["Story"][0].get('content', g_loc['HOME_HTML_NO_STORY_CONTENT']),
             't2_image': g_home["Story"][0].get('image_url', ''),
-            't2_image_alt': g_home["Story"][0].get('image_alt', '')
+            't2_image_alt': g_home["Story"][0].get('image_alt', ''),
+            't2_author': g_home["Story"][0].get('author', ''),
+            't2_src_url': g_home["Story"][0].get('src_url', ''),
+            't2_source': g_home["Story"][0].get('source', '')
         }
     
     context.update({
@@ -259,6 +264,9 @@ def home():
         't2_content': story_data['t2_content'],
         't2_image': story_data['t2_image'],
         't2_image_alt': story_data['t2_image_alt'],
+        't2_author': story_data['t2_author'],
+        't2_src_url': story_data['t2_src_url'],
+        't2_source': story_data['t2_source'],
         't3': t3,
         't3_article': g_home.get("Events", []),
         't4_greeting': g_loc['HOME_HTML_T4_GREETING'],
