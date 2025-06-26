@@ -15,11 +15,11 @@
 uv.lock
 pyproject.toml
 
-# FamilyTrees Obsolete files
+# FamilyTrees internal tool files
 config.yaml
 L10N*.py
-test*.py
-test*.sh
+test_*.py
+test_*.sh
 family_*.py
 prod_*.sh
 
@@ -27,11 +27,11 @@ prod_*.sh
 wip.py
 
 # FamilyTrees Data files
-/data/*.bak
-/data/*.csv
-/data/*.gv
-/data/*.png
-/data/*.db
+data/*.bak
+data/*.csv
+data/*.gv
+data/*.png
+data/*.db
 
 # Streamlit Examples
 main.py
