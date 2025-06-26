@@ -153,7 +153,12 @@ def init_globals():
         for cat in cats:
             # get all articles of this category
             articles = dbm.get_articles(cat)
-            log.debug(f"Found {len(articles)} articles in category '{cat}'")
+            if len(articles) < 5:
+                log.debug(f"FAQ page content is not as planned")
+                flash(f"FAQ page content is not as planned", 'error')
+                return redirect(url_for('home'))
+            else:
+                log.debug(f"Found {len(articles)} articles in category '{cat}'")
             for article in articles:
                 if article['l10n'] == loc:
                     l_faq[cat].append(article)
@@ -165,7 +170,12 @@ def init_globals():
         for cat in cats:
             # get all articles of this category
             articles = dbm.get_articles(cat)
-            log.debug(f"Found {len(articles)} articles in category '{cat}'")
+            if len(articles) < 2:
+                log.debug(f"About page content is not as planned")
+                flash(f"About page content is not as planned", 'error')
+                return redirect(url_for('home'))
+            else:
+                log.debug(f"Found {len(articles)} articles in category '{cat}'")
             for article in articles:
                 if article['l10n'] == loc:
                     l_about[cat].append(article)

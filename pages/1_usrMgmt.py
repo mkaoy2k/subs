@@ -29,7 +29,6 @@ def show_page():
     # --- manage users --- from here
     st.title("User Table Management")
     try:
-        st.markdown("---")
         st.subheader("Query Subscribers")
         df = pd.DataFrame()
         btn11, btn12, btn13, btn14 = st.columns([5,5,5,5])

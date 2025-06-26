@@ -5,6 +5,7 @@ This page provides functionality for managing articles in the system.
 """
 import streamlit as st
 import pandas as pd
+from streamlit import cursor
 from admin_ui import show_admin_sidebar, init_session_state
 import db_utils as dbm
 
@@ -36,8 +37,40 @@ def format_timestamps(df):
                 continue
     return df
 
+def display_article(article, info):
+    """
+    Display article information in a formatted way, distributed across two columns.
+    
+    Args:
+        article (dict): Article information to display
+        info: Streamlit container for the article display
+    """
+    # Split items into two columns
+    items = list(article.items())
+    half = (len(items) + 1) // 2  # Ceiling division to handle odd counts
+    with info:
+        col1, col2 = st.columns([5, 5])
+    
+        # First half items in left column
+        for key, value in items[:half]:
+            if key in ['created_at', 'updated_at'] and value is not None:
+                value = pd.to_datetime(value, utc=True).tz_convert('America/Los_Angeles').strftime('%Y-%m-%d %H:%M:%S')
+            with col1:
+                st.write(f"**{key.replace('_', ' ').title()}:** {value}")
+    
+        # Second half items in right column
+        for key, value in items[half:]:
+            if key in ['created_at', 'updated_at'] and value is not None:
+                value = pd.to_datetime(value, utc=True).tz_convert('America/Los_Angeles').strftime('%Y-%m-%d %H:%M:%S')
+            with col2:
+                st.write(f"**{key.replace('_', ' ').title()}:** {value}")
+
 # Initialize session state
 init_session_state()
+
+# Initialize session state variables
+if 'article_id' not in st.session_state:
+    st.session_state.article_id = 1
 
 # Check authentication
 if not st.session_state.get('authenticated', False):
@@ -52,7 +85,7 @@ st.title("Article Table Management")
 # Add article management UI components here
 with st.container():
     try:
-        st.markdown("---")
+        # --- Query articles --- from here
         st.subheader("Query Articles")
         cats = dbm.get_article_categories()
         if not cats:
@@ -61,7 +94,7 @@ with st.container():
             
         cat = st.selectbox("Category:", cats)
         
-        col1, col2 = st.columns(2)
+        col1, col2 = st.columns([5,5])
         with col1:
             # Add numeric input box for article limit
             limit = st.number_input(
@@ -90,7 +123,7 @@ with st.container():
         articles = []
         
         # Query buttons
-        btn11, btn12 = st.columns(2)
+        btn11, btn12 = st.columns([5,5])
         
         with btn11:
             if st.button("Query by limit"):
@@ -109,86 +142,84 @@ with st.container():
                 with info1:
                     st.dataframe(df)
                     st.success(f"Retrieved {len(articles)} articles")
-            else:
-                with info1:
-                    st.info("No articles found")
-        else:
-            with info1:
-                st.info("Click a query button to load articles")
         
-        # --- Manage a specific article ---
-        st.markdown("---")
-        st.subheader("Manage Articles")
+        col1, col2 = st.columns([5,5])
+        with col1:
+            cursor_id = st.number_input(
+                "Article ID to Query:",
+                min_value=1,
+                value=st.session_state.article_id,
+                step=1,
+                format="%d",
+                help="Enter the article ID you want to retrieve (must be a positive integer)"
+                )
+        with col2:
+            # Get Article_State keys as options
+            article_state_options = list(dbm.Article_State.keys())
+            article_state = st.selectbox(
+                "Article State:",
+                options=article_state_options,
+                index=len(article_state_options) - 1
+                )
         
-        article_id = st.number_input(
-            "Article ID:",
-            min_value=1,
-            step=1,
-            format="%d",
-            help="Enter the article ID you want to retrieve (must be a positive integer)"
-        )
-        article = dbm.get_article_byId(article_id)
+        btn21, btn22 = st.columns([5, 5])
+        with btn21:
+            if st.button("Query by Id"):
+                article = dbm.get_article_byId(cursor_id)
+                if article:
+                    display_article(article, info1)
+                    st.session_state.article_id = article['id']
+                    st.success(f"Retrieved article with ID: {article['id']}")
+                else:
+                    st.error(f"Article with ID {cursor_id} not found")
+        with btn22:
+            if st.button("Query Next by State"):
+                result = dbm.get_next_article(
+                    cursor_id, 
+                    is_censored=dbm.Article_State[article_state]
+                    )
+                if result is not None:
+                    article_id, article = result
+                    display_article(article, info1)
+                    st.session_state.article_id = article_id
+                    st.success(f"Retrieved '{article_state}' article with ID: {article_id}")
+                else:
+                    st.error(f"No '{article_state}' article found with ID: {cursor_id}")
+        # Show delete button
+        with st.expander("Danger Zone", expanded=False):
+            st.warning("⚠️ This action cannot be undone!")
+            if st.button(f"Delete article Id: {cursor_id}"):
+                if dbm.delete_article(cursor_id):
+                    st.success(f"✅ Deleted article Id: {cursor_id}")
+                else:
+                    st.error(f"❌ Failed to delete article Id: {cursor_id}")
         
-        btn21, btn22 = st.columns(2)
-        if article:
-            with btn21:
-                if st.button("Query"):
-                    info21, info22 = st.columns([5,5])
-                    for i, (key, value) in enumerate(article.items()):
-                        # Convert timestamp to local time if needed
-                        if key in ['created_at', 'updated_at'] and value is not None:
-                            value = pd.to_datetime(value, utc=True).tz_convert('America/Los_Angeles').strftime('%Y-%m-%d %H:%M:%S')
-                        if i % 2 == 0:
-                            with info21:
-                                st.write(f"**{key.replace('_', ' ').title()}:** {value}")
-                        else:
-                            with info22:
-                                st.write(f"**{key.replace('_', ' ').title()}:** {value}")
-                    st.success(f"Retrieved article with ID: {article_id}")
-            with btn22:
-                if st.button("Delete"):
-                    if dbm.delete_article(article_id):
-                        st.success(f"Deleted article Id: {article_id}")
-                    else:
-                        st.error(f"Failed to delete article Id: {article_id}")        
-        else:
-            st.info("Enter a valid article ID")        
-        
+        # --- Review pending articles --- from here
         st.markdown("""---""")
         st.subheader("Review Pending Articles")
-
-        # Review pending articles from id = 1
+        info3, info4 = st.columns([15,1])
         result = dbm.get_next_article(1)
         if result is None:
             st.info("No more articles to review")
             st.stop()
         review_id, article = result
+        display_article(article, info3)
         
-        info31, info32 = st.columns([15,1])
-        for i, (key, value) in enumerate(article.items()):
-            # 轉換時間戳記為本地時間
-            if key in ['created_at', 'updated_at'] and value is not None:
-                value = pd.to_datetime(value, utc=True).tz_convert('America/Los_Angeles').strftime('%Y-%m-%d %H:%M:%S')
-            with info31:
-                st.write(f"**{key.replace('_', ' ').title()}:** {value}")
-        with info31:
-            st.success(f"Review article with ID: {review_id}")
-        
-        btn31, btn32 = st.columns(2)
+        btn31, btn32 = st.columns([5, 5])
 
         with btn31:
             if st.button(f"Approve Id: {review_id}"):
                 if dbm.approve_article(review_id, dbm.Article_State['approved']):
-                    st.success(f"Approved article with ID: {review_id}")
+                    st.success(f"✅ Approved article with ID: {review_id}")
                 else:
-                    st.error(f"Failed to approve article with ID {review_id}")
+                    st.error(f"❌ Failed to approve article with ID {review_id}")
         
         with btn32:
             if st.button(f"Reject Id: {review_id}"):
                 if dbm.approve_article(review_id, dbm.Article_State['rejected']):
-                    st.success(f"Rejected article with ID: {review_id}")
+                    st.success(f"✅ Rejected article with ID: {review_id}")
                 else:
-                        st.error(f"Failed to reject article with ID {review_id}")
+                    st.error(f"❌ Failed to reject article with ID {review_id}")
     
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")

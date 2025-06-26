@@ -60,8 +60,7 @@ def show_admin_sidebar():
                 unsafe_allow_html=True
             )
         
-        # Sidebar - Admin User Management
-        st.markdown("---")
+        # Sidebar - Admin User Management --- from here
         st.subheader("Admin User Management")
         with st.expander("Create/Update Admin User", expanded=False):
             with st.form("admin_user_form"):
@@ -145,10 +144,9 @@ def show_main_content():
     """Display the main content area"""
     
     st.title("Admin DBM")
-    st.markdown("---")
     
     # Show database tables
-    st.header("Database Tables")
+    st.subheader("Database Tables")
     tables = init_db_management()
     
     if not tables:
@@ -228,13 +226,13 @@ def show_main_content():
             
             # Drop table button
             with st.expander("Danger Zone", expanded=False):
-                st.warning("This action cannot be undone!")
+                st.warning("⚠️ This action cannot be undone!")
                 if st.button(f"Drop Table '{selected_table}'", type="primary"):
                     if drop_table(selected_table):
-                        st.success(f"Dropped table '{selected_table}'")
+                        st.success(f"✅ Dropped table '{selected_table}'")
                         st.rerun()
                     else:
-                        st.error(f"Failed to drop table '{selected_table}'")
+                        st.error(f"❌ Failed to drop table '{selected_table}'")
 
 def init_session_state():
     """Initialize session state variables"""

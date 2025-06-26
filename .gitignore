@@ -19,6 +19,7 @@ pyproject.toml
 config.yaml
 L10N*.py
 test*.py
+test*.sh
 family_*.py
 prod_*.sh
 
@@ -30,6 +31,7 @@ wip.py
 /data/*.csv
 /data/*.gv
 /data/*.png
+/data/*.db
 
 # Streamlit Examples
 main.py
