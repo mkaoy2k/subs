@@ -76,7 +76,7 @@ FamilyTreesOps 電子報訂閱系統是一個專為家庭設計的網路服務�
    mkdir -p data
    ```
 
-6. **初始化資料庫**
+6. **初始化 Admin user 資料庫**
 
    ```bash
    python genesis.py

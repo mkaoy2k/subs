@@ -1,7 +1,3 @@
-import json
-from PIL import Image, ImageEnhance
-import os
-
 """
 Function Utilities Module
 
@@ -19,6 +15,10 @@ Dependencies:
 - Pillow (PIL): For image processing
 - Standard libraries: json, os
 """
+import json
+from PIL import Image, ImageEnhance
+import os
+from typing import Dict, List, Any
 
 def load_menu(fn):
     """
@@ -82,9 +82,6 @@ def load_L10N(f_l10n):
         FileNotFoundError: If the configuration file or any translation file is not found.
         json.JSONDecodeError: If any of the JSON files contain invalid syntax.
     """
-    # Build and return a dictionary for all supported languages, 
-    # with key of language name and associated L10N dictionaries.
-    # Load the environment variables from file
     
     # reading the data from the language-definition file
     with open(f_l10n) as f:
@@ -192,24 +189,68 @@ def create_avatar(input_path, output_path, size=400, brightness=1.1, contrast=1.
             return True
             
     except Exception as e:
-        print(f"建立頭像時發生錯誤: {str(e)}")
+        print(f"Error creating avatar: {str(e)}")
         return False
+
+def load_page_cat(json_file: str) -> Dict[str, List[str]]:
+    """
+    Load page category data from a JSON file.
+    
+    This function reads a JSON file containing page category configurations and returns
+    the parsed data as a dictionary. The JSON file should contain page names as keys
+    and their corresponding categories as lists of strings.
+    
+    Args:
+        json_file (str): Path to the JSON file containing page categories.
+        
+    Returns:
+        Dict[str, List[str]]: A dictionary where keys are page names and values are 
+                            lists of category strings.
+        
+    Example:
+        >>> page_categories = load_page_cat("page_category.json")
+        >>> print(page_categories['home'])
+        ['News', 'Story', 'Events']
+        
+    Raises:
+        FileNotFoundError: If the specified file does not exist.
+        json.JSONDecodeError: If the file contains invalid JSON.
+    """
+    try:
+        with open(json_file, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except FileNotFoundError as e:
+        print(f"Error: File not found: {json_file}")
+        raise
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON format in file: {json_file}")
+        raise
+
 
 # Functional testing
 if __name__ == '__main__':
+    # Test page category loading
+    try:
+        page_categories = load_page_cat("page_category.json")
+        print("Page category loaded successfully:")
+        for page, categories in page_categories.items():
+            print(f"{page}: {', '.join(categories)}")
+    except Exception as e:
+        print(f"Test failed: {str(e)}")
+    
     # Test multi-language localization (L10N) loading
-    menu = load_menu("ops_menu.json")
-    l_menu = menu['繁中']
-    print(f"l_menu[0] URL={l_menu[0][0]}\n")
-    print(f"l_menu[0] Text={l_menu[0][1]}\n")
-    print(f"l_menu[1] URL={l_menu[1][0]}\n")
-    print(f"l_menu[1] Text={l_menu[1][1]}\n")
-    print(f"l_menu[2] URL={l_menu[2][0]}\n")
-    print(f"l_menu[2] Text={l_menu[2][1]}\n")
-    g_L10N = load_L10N("L10N.json")
-    print(f"g_L10N={g_L10N}\n")
-    g_L10N_options = list(g_L10N.keys())
-    print(f"g_L10N_options={g_L10N_options}")
+    # menu = load_menu("ops_menu.json")
+    # l_menu = menu['繁中']
+    # print(f"l_menu[0] URL={l_menu[0][0]}\n")
+    # print(f"l_menu[0] Text={l_menu[0][1]}\n")
+    # print(f"l_menu[1] URL={l_menu[1][0]}\n")
+    # print(f"l_menu[1] Text={l_menu[1][1]}\n")
+    # print(f"l_menu[2] URL={l_menu[2][0]}\n")
+    # print(f"l_menu[2] Text={l_menu[2][1]}\n")
+    # g_L10N = load_L10N("L10N.json")
+    # print(f"g_L10N={g_L10N}\n")
+    # g_L10N_options = list(g_L10N.keys())
+    # print(f"g_L10N_options={g_L10N_options}")
     
     # Test avatar creation
     # test_input = "test.jpg"  # Replace with your test image path

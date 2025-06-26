@@ -23,7 +23,7 @@ import os
 from dotenv import load_dotenv
 import db_utils as dbm
 from email_utils import validate_email, generate_verification_token, send_verification_email, send_newsletter
-from funcUtils import load_menu, load_L10N
+from funcUtils import load_menu, load_L10N, load_page_cat
 import logging
 
 # Global variables
@@ -95,7 +95,7 @@ def init_globals():
     Initialize global variables
     """
     global g_L10N, g_L10N_options, g_loc_key, g_loc
-    global g_MENU, g_menu, g_PAGE, g_home, g_faq, g_about
+    global g_MENU, g_menu, g_PAGE, g_PAGE_CAT, g_home, g_faq, g_about
     global backend, ft_svr, git_ftpe, git_subs
     
     # Load database backend settings
@@ -125,9 +125,14 @@ def init_globals():
     log.debug(f"ARTICLE_WINDOW: {article_window}")
     
     # Load menu
-    f_menu = os.getenv("OPS_MENU_FILE")
+    f_menu = os.getenv("OPS_MENU_FILE","ops_menu.json")
     g_MENU = load_menu(f_menu)
     g_menu = g_MENU[g_loc_key]
+   
+    # Load page categories
+    f_page_cat = os.getenv("OPS_PAGE_CAT","page_category.json")
+    g_PAGE_CAT = load_page_cat(f_page_cat)
+    log.debug(f"Page categories: {g_PAGE_CAT}")
     
     # Initialize page content for all languages
     g_PAGE = {}
@@ -135,50 +140,51 @@ def init_globals():
         l_page = {}
         
         # Initialize home page from here
-        cats = ["News", "Story", "Events"]
-        l_home = {"News": [], "Story": [], "Events": []}
+        cats = g_PAGE_CAT['home']
+        l_home = {}
         for cat in cats:
             # get articles within the window
             articles = dbm.get_articles_byDays(cat, byDays=article_window)
-            log.debug(f"Found {len(articles)} articles in category '{cat}' from last {article_window} days")
-            l_home[cat] = []
-            for article in articles:
-                if article['l10n'] == loc:
-                    l_home[cat].append(article)
+            if articles:
+                log.debug(f"Found {len(articles)} articles in category '{cat}' from last {article_window} days")
+                l_home[cat] = []
+                for article in articles:
+                    if article['l10n'] == loc:
+                        l_home[cat].append(article)
+            else:
+                log.debug(f"No articles found in category '{cat}' from last {article_window} days")
         l_page['home'] = l_home
         
         # Initialize FAQ page from here
-        cats = ["FAQ"]
-        l_faq = {"FAQ": []}
+        cats = g_PAGE_CAT['faq']
+        l_faq = {}
         for cat in cats:
             # get all articles of this category
             articles = dbm.get_articles(cat)
-            if len(articles) < 5:
-                log.debug(f"FAQ page content is not as planned")
-                flash(f"FAQ page content is not as planned", 'error')
-                return redirect(url_for('home'))
-            else:
+            if articles:
                 log.debug(f"Found {len(articles)} articles in category '{cat}'")
-            for article in articles:
-                if article['l10n'] == loc:
-                    l_faq[cat].append(article)
+                l_faq[cat] = []
+                for article in articles:
+                    if article['l10n'] == loc:
+                        l_faq[cat].append(article)
+            else:
+                log.debug(f"No articles found in category '{cat}'")
         l_page['faq'] = l_faq
         
         # Initialize about page from here
-        cats = ["About"]
-        l_about = {"About": []}
+        cats = g_PAGE_CAT['about']
+        l_about = {}
         for cat in cats:
             # get all articles of this category
             articles = dbm.get_articles(cat)
-            if len(articles) < 2:
-                log.debug(f"About page content is not as planned")
-                flash(f"About page content is not as planned", 'error')
-                return redirect(url_for('home'))
-            else:
+            if articles:
                 log.debug(f"Found {len(articles)} articles in category '{cat}'")
-            for article in articles:
-                if article['l10n'] == loc:
-                    l_about[cat].append(article)
+                l_about[cat] = []
+                for article in articles:
+                    if article['l10n'] == loc:
+                        l_about[cat].append(article)
+            else:
+                log.debug(f"No articles found in category '{cat}'")
         l_page['about'] = l_about
         
         # Add page content to global page dictionary
@@ -191,7 +197,7 @@ def init_globals():
     g_about = g_PAGE[key]['about']
     
     return (backend, ft_svr, git_ftpe, git_subs, g_L10N, g_L10N_options,
-            g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, g_home, g_faq, g_about)
+            g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, g_PAGE_CAT, g_home, g_faq, g_about)
     
 def get_template_context():
     """Return template context for all view functions"""
@@ -211,7 +217,7 @@ def get_template_context():
 @app.before_request
 def before_request():
     """Execute before each request"""
-    global g_loc_key, g_loc, g_menu, g_home, g_faq, g_about
+    global g_loc_key, g_loc, g_menu, g_home, g_faq, g_about, g_PAGE
     
     # Ensure current_lang exists in session
     if 'current_lang' not in session:
@@ -230,17 +236,17 @@ def before_request():
                 g_faq = g_PAGE[key]['faq']
                 g_about = g_PAGE[key]['about']
             except Exception as e:
-                log.error(f"更新語言時出錯: {str(e)}")
+                log.error(f"Language switch error: {str(e)}")
                 
 @app.route("/")
 def home():
-    """首頁路由"""
+    """Home page"""
     context = get_template_context()
     t1 = g_loc['HOME_HTML_T1']
     t2 = g_loc['HOME_HTML_T2']
     t3 = g_loc['HOME_HTML_T3']
     
-    # 檢查 Story 是否有內容，如果沒有則使用預設值
+    # Check if Story has content, if not use default values
     story_data = {
         't2_title': g_loc['HOME_HTML_NO_STORY_TITLE'],
         't2_content': g_loc['HOME_HTML_NO_STORY_CONTENT'],
@@ -289,19 +295,20 @@ def home():
 @app.route("/faq")
 def faq():
     """FAQ page"""
-    global g_faq
-    if len(g_faq['FAQ']) < 5:
-        log.debug(f"FAQ page content is not as planned: {g_faq['FAQ']}")
-        flash(f"FAQ page content is not as planned: {g_faq['FAQ']}", 'error')
-        return redirect(url_for('home'))
+    global g_loc, g_faq
+    
     context = get_template_context()
+    
+    # Get the articles for the current language's FAQ category
+    faq_articles = g_faq['faq']
+    
     context.update({
         'release': g_loc['RELEASE'],
         'header': g_loc['FAQ_HTML_H1'],
-        'questions': [article['title'] for article in g_faq["FAQ"]],
-        'answers': [article['content'] for article in g_faq["FAQ"]],
-        'authors': [article['author'] for article in g_faq["FAQ"]],
-        'images': [article['src_url'] for article in g_faq["FAQ"]],
+        'questions': [article['title'] for article in faq_articles],
+        'answers': [article['content'] for article in faq_articles],
+        'authors': [article['author'] for article in faq_articles],
+        'images': [article['src_url'] for article in faq_articles],
         'ft_url': ft_svr,
         'title': 'faq'
     })
@@ -310,22 +317,18 @@ def faq():
 @app.route("/about")
 def about():
     """About page"""
-    global g_about
+    global g_loc, g_about, git_ftpe, git_subs
     
-    if len(g_about['About']) < 2:
-        log.debug(f"About page content is not as planned: {g_about['About']}")
-        flash(f"About page content is not as planned: {g_about['About']}", 'error')
-        return redirect(url_for('home'))
     context = get_template_context()
     body = [None, None]
-    log.debug(f"Processing about page content. Found {len(g_about['About'])} articles")
+    log.debug(f"Processing about page content. Found {len(g_about['about'])} articles")
     
     # Log all article titles for debugging
-    for article in g_about['About']:
+    for article in g_about['about']:
         log.debug(f"Article title: '{article['title']}' (length: {len(article['content'])} chars)")
     
     # Match articles to expected sections
-    for article in g_about['About']:
+    for article in g_about['about']:
         if article['title'] == g_loc['ABOUT_INTRODUCTION_H2']:
             body[0] = article['content']
             log.debug(f"Found introduction article. Content length: {len(body[0])} chars")
@@ -617,8 +620,8 @@ def main():
     Start Flask server
     """
     log.info("Starting FamilyTreesOps server...")
-    app.run(host='0.0.0.0', port=5555, use_reloader=False)
-    # app.run(port=5555, debug=True, use_reloader=True)
+    # app.run(host='0.0.0.0', port=5555, use_reloader=False)
+    app.run(port=5566, debug=True, use_reloader=True)
 
 # Initialize global variables
 init_globals()

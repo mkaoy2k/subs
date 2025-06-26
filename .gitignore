@@ -9,29 +9,37 @@
 ._*
 .DS_Store
 
-# Conda/uv environment
+# env/Conda/uv environment
 .env
 .venv
+venv/
 uv.lock
+.pyenv
+.python-version
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.pyre/
+.pytype/
+.coverage
+htmlcov/
+*.egg-info/
+.eggs/
+dist/
+build/
 pyproject.toml
 
 # FamilyTrees internal tool files
 config.yaml
 L10N*.py
-test_*.py
-test_*.sh
-family_*.py
-prod_*.sh
-
-# FamilyTrees support files
+test_*
+prod_*
 wip.py
 
 # FamilyTrees Data files
-data/*.bak
-data/*.csv
-data/*.gv
-data/*.png
-data/*.db
+data/*
 
 # Streamlit Examples
 main.py
@@ -39,7 +47,6 @@ account.py
 about.py
 app.py
 demo.py
-*.xlsx
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
