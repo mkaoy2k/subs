@@ -308,7 +308,7 @@ def faq():
     context = get_template_context()
     
     # Get the articles for the current language's FAQ category
-    faq_articles = g_faq['faq']
+    faq_articles = g_faq['FAQ']
     
     context.update({
         'release': os.getenv("RELEASE", ""),
@@ -329,14 +329,14 @@ def about():
     
     context = get_template_context()
     body = [None, None]
-    log.debug(f"Processing about page content. Found {len(g_about['about'])} articles")
+    log.debug(f"Processing about page content. Found {len(g_about['About'])} articles")
     
     # Log all article titles for debugging
-    for article in g_about['about']:
+    for article in g_about['About']:
         log.debug(f"Article title: '{article['title']}' (length: {len(article['content'])} chars)")
     
     # Match articles to expected sections
-    for article in g_about['about']:
+    for article in g_about['About']:
         if article['title'] == g_loc['ABOUT_INTRODUCTION_H2']:
             body[0] = article['content']
             log.debug(f"Found introduction article. Content length: {len(body[0])} chars")

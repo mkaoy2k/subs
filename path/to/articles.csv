@@ -1,0 +1,106 @@
+id,title,content,category,author,source,src_url,image_url,l10n,created_at,updated_at,is_censored
+1,家庭大小事，歡迎投稿,"<p>從網頁上的「<a href=""https://bold-squirrel-vertically.ngrok-free.app/feedback"">家事投稿<a>」報告您的見聞。<br>
+一旦通過審核後，將會分享在網站首頁。</p>
+",News,高嘉祥,高嘉祥,https://bold-squirrel-vertically.ngrok-free.app/feedback,"https://github.com/mkaoy2k/Images/blob/main/subs_feedback_TW.png?raw=true
+",繁中,2025-06-25 14:25:47,2025-06-25 22:55:52,1
+2,"Your Family matters matter!
+","<p>Please feedback your family matters <a href=""https://bold-squirrel-vertically.ngrok-free.app/feedback"">here<a>.<br>
+Upon review, it will be shared on the homepage.</p>
+",News,Michael Kao,Michael Kao,https://bold-squirrel-vertically.ngrok-free.app/feedback,,US,2025-06-25 14:41:00,2025-06-25 14:43:41,1
+3,滿一足歲,"<p>謝欣慈與高銘亨之長女高玉杉（第41代）八月五日即將迎接她的第一個生日。<br>
+祝玉杉生日快樂！</p>
+",News,高嘉祥,高嘉祥,,https://github.com/mkaoy2k/Images/blob/main/Poppy_10mon.JPEG?raw=true,繁中,2025-06-25 14:53:29,2025-06-25 22:55:52,1
+4,The First Ever Birthday!,"<p>Penelope, the 41st generation and first daughter of Pam and Henry Kao, will be one year old on August 5, 2025.<br>
+Happy Birthday to Penelope!</p>",News,Michael Kao,Michael Kao,,https://github.com/mkaoy2k/Images/blob/main/Poppy_10mon.JPEG?raw=true,US,2025-06-25 14:55:07,2025-06-25 22:55:52,1
+5,幸福,"<p>一個人問佛陀：我想要幸福。<br>
+佛陀說：首先去掉""我""，也就是自我。<br>
+然後去掉""想要""，也就是慾望。<br>
+如果你不自私，也不貪婪，你就不會太在意個人利益。<br>
+現在，讓我們看看你還剩下什麼：<br>
+只有""幸福""！</p>
+",Story,"軼名
+",網路,,https://github.com/mkaoy2k/Images/blob/main/Buddha.jpeg?raw=true,繁中,2025-06-25 14:59:16,2025-06-25 22:55:52,1
+6,Happiness,"<p>A man asked Buddha: I want happiness.<br>
+Buddha said: First, please remove ""I"", that's ego. <br>
+Then, please remove ""want"", that's desire.<br>
+If you aren't selfish and aren't greedy, either, you won't worry too much about your personal interests. <br>
+Then let's see now what you are left with: <br>
+""HAPPINESS!</p>
+",Story,Anonymous,Internet,,https://github.com/mkaoy2k/Images/blob/main/Buddha.jpeg?raw=true,US,2025-06-25 15:07:48,2025-06-25 22:55:52,1
+7,免費電子書,"<p>Python 程式語言入門電子書，免費相送，<br>
+適合想學習 Python 的朋友！<br>
+<a href=""https://github.com/mkaoy2k/Kids-Lets-Play-Python"" target=""_blank"" rel=""noopener noreferrer""
+>下載電子書</a></p>
+",Events,高嘉祥,高嘉祥,https://github.com/mkaoy2k/Kids-Lets-Play-Python,https://github.com/mkaoy2k/Images/blob/main/Python_QR_Code.png?raw=true,繁中,2025-06-25 15:12:06,2025-06-25 15:24:29,1
+8,Free eBooks,"<p>Python eBooks are available for people, like kids, who want to learn Python.<br>
+<a href=""https://github.com/mkaoy2k/Kids-Lets-Play-Python"" target=""_blank"" rel=""noopener noreferrer""
+>Download eBook</a></p>",Events,Michael Kao,Michael Kao,https://github.com/mkaoy2k/Kids-Lets-Play-Python,https://github.com/mkaoy2k/Images/blob/main/Python_QR_Code.png?raw=true,US,2025-06-25 15:15:21,2025-06-25 15:22:58,1
+9,族譜個別家庭版服務 2.5 版正式開跑,"<p>族譜服務平台上<a href=""https://github.com/mkaoy2k/ftpe"" target=""_blank"" rel=""noopener noreferrer"">族譜個別家庭版服務</a><b>完全免費</b>使用，也是開源的。您可以在 <a href=""https://github.com/mkaoy2k/ftpe"" target=""_blank"" rel=""noopener noreferrer"">GitHub 下載應用程式碼</a>，並在您的電腦上獨立運行。<br>
+若您支持此服務平台並值得推廣，歡迎大家告訴大家，也歡迎隨力贊助。</p>
+",Events,高嘉祥,高嘉祥,https://github.com/mkaoy2k/ftpe,,繁中,2025-06-25 15:22:58,2025-06-25 15:24:34,1
+10,原創者是誰？,"<p>發想原創者：<a href=""mailto:mkaoy2k@gmail.com"" target=""_blank"" rel=""noopener noreferrer"">高嘉祥</a></p>
+",faq,https://github.com/mkaoy2k/Images/blob/main/mkao2008_avatar.jpg?raw=true,,,,繁中,2025-06-25 15:31:18,2025-06-25 22:55:52,1
+11,Who Created FamilyTrees?,"<p>Created by <a href=""mailto:mkaoy2k@gmail.com"" target=""_blank"" rel=""noopener noreferrer"">Michael Kao</a></p>
+",faq,https://github.com/mkaoy2k/Images/blob/main/mkao2008_avatar.jpg?raw=true,,,,US,2025-06-25 15:32:32,2025-06-25 22:55:52,1
+12,Free FamilyTrees Personal-Edition 2.5 Release Available,"<p>The <a href=""https://github.com/mkaoy2k/ftpe"" target=""_blank"" rel=""noopener noreferrer"">FamilyTrees Personal-Edition</a> is <b>100% FREE</b>. And open source which is available for <a href=""https://github.com/mkaoy2k/ftpe"" target=""_blank"" rel=""noopener noreferrer"">download at GitHub</a>.<br>
+Feel free to share this service platform to your friends and families.</p>
+",Events,Michael Kao,Michael Kao,https://github.com/mkaoy2k/ftpe,,US,2025-06-25 15:33:29,2025-06-25 15:34:49,1
+13,如何贊助？,"<p>我的程式碼靠咖啡因驅動！☕ 贊助<a href=""https://www.buymeacoffee.com/jkbwvj5y4zl"" target=""_blank"" rel=""noopener noreferrer"">一杯咖啡</a>的錢，使令我能保持創新，繼續打造好用的軟體！</p>
+",faq,https://github.com/mkaoy2k/Images/blob/main/mkao2010_avatar.jpg?raw=true,,,,繁中,2025-06-25 15:35:08,2025-06-25 22:55:52,1
+14,How to Donate?,"<p>My code runs on caffeine! ☕ Donate the money for <a href=""https://www.buymeacoffee.com/jkbwvj5y4zl"" target=""_blank"" rel=""noopener noreferrer"">a cup of coffee</a> and make me keep innovating and creating useful software!</p>
+",faq,https://github.com/mkaoy2k/Images/blob/main/mkao2010_avatar.jpg?raw=true,,,,US,2025-06-25 15:36:19,2025-06-25 22:55:52,1
+15,如何收費？,"<p>族譜服務平台上<a href=""https://github.com/mkaoy2k/ftpe"" target=""_blank"" rel=""noopener noreferrer"">族譜個別家庭版服務</a><b>完全免費</b>使用，也是開源的。您可以在 <a href=""https://github.com/mkaoy2k/ftpe"" target=""_blank"" rel=""noopener noreferrer"">GitHub 下載應用程式碼</a>，並在您的電腦上獨立運行。<br>
+若您支持此服務平台並值得推廣，歡迎大家告訴大家，也歡迎隨力贊助。</p>
+",faq,https://github.com/mkaoy2k/Images/blob/main/mkao2014_avatar.jpg?raw=true,,,,繁中,2025-06-25 15:39:10,2025-06-25 22:55:52,1
+16,Any Cost using FamilyTrees?,"<p>The <a href=""https://github.com/mkaoy2k/ftpe"" target=""_blank"" rel=""noopener noreferrer"">FamilyTrees Personal-Edition</a> is <b>100% FREE</b>. And open source which is available for <a href=""https://github.com/mkaoy2k/ftpe"" target=""_blank"" rel=""noopener noreferrer"">download at GitHub</a>.<br>
+Feel free to share this service platform to your friends and families.</p>
+",faq,https://github.com/mkaoy2k/Images/blob/main/mkao2014_avatar.jpg?raw=true,,,,US,2025-06-25 15:39:37,2025-06-25 22:55:52,1
+17,如何下載我的族譜資料？,"<p>如下圖所示 : <br>
+1.輸入您的檔案名稱（不需加 .csv 文件類型）。<br>
+2.點擊 '下載' 按鈕。<br>
+資料將會下載在您的主機 'Downloads' 目錄。完成！</p>
+<p>試一下<a href=""https://crappie-on-kingfish.ngrok-free.app""
+target=""_blank"" rel=""noopener noreferrer""
+>族譜個別家庭版服務</a></p>
+",faq,https://github.com/mkaoy2k/Images/blob/main/mkao2016_avatar.jpg?raw=true,,https://github.com/mkaoy2k/Images/blob/main/ubsScreenShot_Settings_TW.png?raw=true,,繁中,2025-06-25 15:42:38,2025-06-25 15:51:21,1
+18,How to Download my Family Data?,"<p>See the screen shot, bwlow and do the followings:<br>
+1.Enter File Name (without file type .csv file type), Hit 'RETURN'.<br>
+2.Click 'Download' button to save.<br>
+Your family tree file will be saved locally in 'Downloads' folder of your machine most likely. Done!</p>
+<p>Try <a href=""https://crappie-on-kingfish.ngrok-free.app"" target=""_blank"" rel=""noopener noreferrer""
+>personal-edition web service</a> with a sample family!</p>
+",faq,https://github.com/mkaoy2k/Images/blob/main/mkao2016_avatar.jpg?raw=true,,https://github.com/mkaoy2k/Images/blob/main/subsScreenShot_Settings.png?raw=true,,US,2025-06-25 15:43:50,2025-06-25 15:50:09,1
+19,Web 伺服器沒有回應，是否當機了？,"<p>在瀏覽器上，您可能會看到 Web 伺服器無回應，如下圖所示。 它可能宕機了嗎？<br>
+答案可能是：Web 伺服器不定期須要維護，請稍後重試。</p>
+",faq,https://github.com/mkaoy2k/Images/blob/main/mkao2018_avatar.jpg?raw=true,,https://github.com/mkaoy2k/Images/blob/main/subsScreenShot_ops_down.png?raw=true,,繁中,2025-06-25 15:48:00,2025-06-25 15:52:44,1
+20,"Web Server not responding, is it Down?","<p>On the browser, you may see 'Web Server not responding', as shown in the screen shot below.<br>
+Is it down?<br>
+The answer might be so. The server needs to bring down for maintenance once in a while.<br>
+Please try again later.</p>
+",faq,https://github.com/mkaoy2k/Images/blob/main/mkao2018_avatar.jpg?raw=true,,https://github.com/mkaoy2k/Images/blob/main/subsScreenShot_ops_down.png?raw=true,,US,2025-06-25 15:48:42,2025-06-25 15:52:48,1
+21,介紹,"<p>「<b>族譜平台</b>」是一項服務平台提供多種服務，幫助您建立並管理家譜。隨著日益成員的增長，您的族譜將成為傳承給子孫後代珍貴遺產的一部分。<br>
+族譜平台目前提供三種網路服務：</p>
+<p>1. 第一種名為：「<b>FamilyTrees</b>」的企業版網路服務<br>
+它允許互聯網服務企業透過互聯網，提供所有註冊家庭及會員相互連接分享。</p>
+<p>2. 第二種名為：「<b>FamilyTreesPE (ftpe)</b>」的個別家庭版網路服務<br>
+這是個別家庭版，<b>完全免費</b>使用，也是開源的。您可以在 GitHub 下載應用程式碼，並在您的電腦上獨立運行。</p>
+<p>3. 第三種名為：「<b>FamilyTreesOps (subs)</b>」的網路服務<br>
+這是一個通訊訂閱服務，提供個別家庭成員間分享及訂閱其家庭消息及活動的服務。</p>
+",about,,,,,繁中,2025-06-25 15:50:28,2025-06-25 15:55:29,1
+22,Introduction,"<p>The '<b>FamilyTrees Platform</b>' provides a Service Platform that consists of multiple services to help you manage your family tree. As part of your precious heritage, a complete family tree can be passed along to future generations.<br>
+There are three kinds of web services under the FamilyTrees platform</p>
+<p>1. The first kind of on-line web services, called '<b>FamilyTrees</b>' services<br>
+It allows ISP provider/organization enabling its registered members to build and connect related family trees over Internet on which members share and form a bigger related community.</p>
+<p>2. The second kind of web services, called '<b>FamilyTreesPE (ftpe)</b>' services<br>
+This <b>FREE</b> personal-edition web service provides individuals to manage his/her own family tree, even off-line running on his/her laptop.</p>
+<p>3. The third kind of on-line web services, called '<b>FamilyTreesOps (subs)</b>' services<br>
+This web service provides newsletter publication/subscription for your own family members to keep in touch and receive news and family events.</p>
+",about,,,,,US,2025-06-25 15:50:52,2025-06-25 15:55:21,1
+23,GitHub 程式下載,"<p>個別家庭版網路服務可以提供使用者<b>免費</b>在本地端獨自運行。請下載 <a href=""https://github.com/mkaoy2k/ftpe"" target=""_blank"" rel=""noopener noreferrer"">ftpe</a></p>",about,,,,,繁中,2025-06-25 15:53:11,2025-06-25 15:55:36,1
+24,Download from GitHub,"<p>The <b>FREE</b> personal-edition web service provides individuals to have his/her own family tree running on local machine.<br>
+Download <a href=""https://github.com/mkaoy2k/ftpe"" target=""_blank"" rel=""noopener noreferrer"">ftpe</a></p>
+",about,,,,,US,2025-06-25 15:53:12,2025-06-25 15:55:38,1
+25,t1,test1,News,,,,,US,2025-06-25 17:00:52,2025-06-26 00:16:36,-1
+28,test2,test2,Contact,test2,test@email.com,,,US,2025-06-27 11:24:52.953637,2025-06-27 19:47:51,-1
+29,test3,test3,Contact,test3,af@email.com,,,US,2025-06-27 11:29:50.914092,2025-06-27 19:50:23,-1
+30,aaa,aaa,Contact,aaa,a@gmail.com,,,US,2025-06-27 11:46:09.224792,2025-06-27 19:51:22,-1

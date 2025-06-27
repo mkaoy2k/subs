@@ -50,6 +50,22 @@ class ArticleForm(FlaskForm):
         self.email.label.text = self.current_loc['email']
         self.submit.label.text = self.current_loc['submit']
         
+        # Set language choices from template context 
+        try:
+            from ops_svr import get_template_context
+            context = get_template_context()
+            self.l10n.choices = [(code, code) for code in context['options']]
+            # Set default selected language
+            self.l10n.default = lang
+            self.process()  # This ensures the default is applied
+        except Exception as e:
+            import logging
+            logging.error(f"Error loading language choices: {str(e)}")
+            # Fallback to default languages if there's an error
+            self.l10n.choices = [('US', 'English'), ('繁中', '繁體中文')]
+            self.l10n.default = lang if lang in ['US', '繁中'] else 'US'
+            self.process()  # This ensures the default is applied
+        
     # Form fields defined at class level
     title = StringField('Title', validators=[
         DataRequired(message='Title is required'),
@@ -62,17 +78,10 @@ class ArticleForm(FlaskForm):
     ])
     
     category = SelectField('Category', choices=[
-        ('News', 'News'),
-        ('Story', 'Story'),
-        ('Events', 'Events'),
-        ('FAQ', 'FAQ'),
-        ('About', 'About')
+        ('Feedback', 'Feedback')
     ], validators=[DataRequired()])
     
-    l10n = SelectField('Language', choices=[
-        ('US', 'English'),
-        ('繁中', '繁體中文')  
-    ], validators=[DataRequired()])
+    l10n = SelectField('Language', choices=[], validators=[DataRequired()])
 
     author = StringField('Author', validators=[
         DataRequired(message='Please provide your name')

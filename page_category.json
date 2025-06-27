@@ -1,5 +1,5 @@
 {
     "home"  : ["News", "Story", "Events"],
-    "faq"   : ["faq"],
-    "about" : ["about"]
+    "faq"   : ["FAQ"],
+    "about" : ["About"]
 }

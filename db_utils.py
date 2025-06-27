@@ -58,8 +58,8 @@ Article_Categories = {
     "news": "News", 
     "story": "Story", 
     "events": "Events", 
-    "faq": "faq", 
-    "about": "about",
+    "faq": "FAQ", 
+    "about": "About",
     "contact": "Contact",
     "feedback": "Feedback"
     }
@@ -954,6 +954,53 @@ def export_users_to_file(file_path, format_type='json'):
         log.error(f"Error exporting users: {str(e)}")
         return False
 
+def export_articles_to_file(file_path, format_type='json'):
+    """
+    將所有文章從資料庫匯出為 JSON 或 CSV 格式的檔案。
+    
+    參數:
+        file_path (str): 檔案儲存路徑
+        format_type (str): 輸出格式 - 'json' 或 'csv'
+        
+    回傳:
+        bool: 匯出成功回傳 True，失敗回傳 False
+    """
+    try:
+        # 如果目錄不存在則建立
+        os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT * FROM {db_tables['article']}")
+            articles = cursor.fetchall()
+            
+            if not articles:
+                log.warning("沒有找到要匯出的文章")
+                return False
+                
+            # 轉換為字典列表
+            article_list = [dict(article) for article in articles]
+            
+            if format_type.lower() == 'json':
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(article_list, f, indent=2, default=str, ensure_ascii=False)
+            elif format_type.lower() == 'csv':
+                with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.DictWriter(f, fieldnames=article_list[0].keys())
+                    writer.writeheader()
+                    writer.writerows(article_list)
+            else:
+                log.error(f"不支援的格式: {format_type}。請使用 'json' 或 'csv'")
+                return False
+                
+            log.info(f"成功匯出 {len(article_list)} 篇文章至 {file_path}")
+            return True
+            
+    except Exception as e:
+        log.error(f"匯出文章時發生錯誤: {str(e)}")
+        return False
+
+
 def import_users_from_file(file_path, format_type='json'):
     """
     Import users from a JSON or CSV file into the database.
@@ -1092,4 +1139,16 @@ if __name__ == "__main__":
     success, errors, skipped = import_users_from_file(csv_path, 'csv')
     print(f"Import from CSV: Success: {success}, Errors: {errors}, Skipped: {skipped}")
     
-    exit(0) 
+    # export articles to JSON
+    json_path = os.path.join(data_dir, 'articles_backup.json')
+    if export_articles_to_file(json_path, 'json'):
+        print(f"✓ Successfully exported to {json_path}")
+    else:
+        print(f"✗ Failed to export to {json_path}")
+
+    # export articles to CSV
+    csv_path = os.path.join(data_dir, 'articles_backup.csv')
+    if export_articles_to_file(csv_path, 'csv'):
+        print(f"✓ Successfully exported to {csv_path}")
+    else:
+        print(f"✗ Failed to export to {csv_path}")
