@@ -1,6 +1,7 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SelectField, SubmitField
 from wtforms.validators import DataRequired, Email, Optional, URL, Length
+import email_utils as eu
 
 class ArticleForm(FlaskForm):
     """Form for submitting new articles"""
@@ -107,3 +108,9 @@ class ArticleForm(FlaskForm):
         """Validate image_url if provided"""
         if field.data and not field.data.startswith(('http://', 'https://')):
             field.data = 'http://' + field.data
+    
+    def validate_email(self, field):
+        """Validate email if provided"""
+        if field.data and not eu.validate_email(field.data):
+            raise ValidationError('Please enter a valid email address')
+        

@@ -8,7 +8,8 @@ import os
 from typing import Dict, Any
 import streamlit as st
 import db_utils as dbm
-
+from dotenv import load_dotenv
+load_dotenv()
 # ===== Application Settings (Module Level) =====
 # These settings can be imported by other modules using context_utils
 
@@ -16,16 +17,19 @@ import db_utils as dbm
 TIMEZONE = "UTC"
 ENABLE_MAINTENANCE = False
 SITE_TITLE = "Admin DBM"
+RELEASE = os.getenv("RELEASE", "")
 
 # Language Settings
-if dbm.get_article_languages():
-    LANGUAGE = dbm.get_article_languages()[0]
+language_list = dbm.get_article_languages()
+LANGUAGES = language_list
+if language_list:
+    LANGUAGE = language_list[0]
 else:
     LANGUAGE = "US"
 
 # Email Settings
 EMAIL_NOTIFICATIONS = True
-DEFAULT_EMAIL = "mkaoy2k@gmail.com"
+DEFAULT_EMAIL = os.getenv("MAIL_DEFAULT_SENDER", "mkaoy2k@gmail.com")
 
 # UI Settings
 DARK_MODE = False
@@ -34,6 +38,9 @@ ITEMS_PER_PAGE = 20
 # Security Settings
 PASSWORD_RESET_TIMEOUT = 24  # hours
 MAX_LOGIN_ATTEMPTS = 5
+
+# Server Settings
+OPS_SVR=os.getenv("OPS_SVR", "http://localhost:5555")
 
 # ===== End of Module Settings =====
 
@@ -49,13 +56,16 @@ def init_context() -> Dict[str, Any]:
         'timezone': TIMEZONE,
         'enable_maintenance': ENABLE_MAINTENANCE,
         'site_title': SITE_TITLE,
+        'release': RELEASE,
+        'languages': LANGUAGES,
         'language': LANGUAGE,
         'default_email': DEFAULT_EMAIL,
         'email_notifications': EMAIL_NOTIFICATIONS,
         'dark_mode': DARK_MODE,
         'items_per_page': ITEMS_PER_PAGE,
         'password_reset_timeout': PASSWORD_RESET_TIMEOUT,
-        'max_login_attempts': MAX_LOGIN_ATTEMPTS
+        'max_login_attempts': MAX_LOGIN_ATTEMPTS,
+        'ops_svr': OPS_SVR
     }
     
     return default_settings

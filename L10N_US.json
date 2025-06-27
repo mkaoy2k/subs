@@ -1,11 +1,11 @@
 {
-    "RELEASE" : "pre-1.2",
     "SETTINGS" : "Settings",
     "YOUR_LANGUAGE" : "Your Language",
     "SUBSCRIBE" : "Subscribe",
     "UNSUBSCRIBE" : "Unsubscribe",
     "EMAIL_SUBSCRIPTION" : "Email Subscription",
     "EMAIL_INVALID" : "Invalid email address",
+    "FIELDS_REQUIRED" : "Required field missing",
     "HTML_AUTHOR_LABEL" : "Author:",
     "HTML_SOURCE_LABEL" : "Source:",
     "HOME_HTML_H1" : "The Owon Kaos Journal",
@@ -46,5 +46,7 @@
     "NO_ACTIVE_SUBSCRIBERS" : "No active subscribers found",
     "NO_EMAILS_FOUND" : "No valid emails found",
     "PUB_HTML_SUCCESS" : "Newsletter sent successfully.",
-    "PUB_HTML_FAIL" : "Newsletter sent failed, please try later."
+    "PUB_HTML_FAIL" : "Newsletter sent failed, please try later.",
+    "CONTACT_SUCCESS" : "Your message has been sent. We will get back to you soon!",
+    "CONTACT_FAIL" : "Your message has not been sent. Please try again later!"
 }

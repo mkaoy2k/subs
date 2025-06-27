@@ -22,22 +22,17 @@ show_admin_sidebar()
 # Main content
 st.title("Publication Management")
 
-# Add some spacing
-st.markdown("---")
-
-# Publication controls
-st.header("Newsletter Publication")
+# Publications
+st.subheader("Newsletter for Active Subscribers")
 
 # Publication actions
-st.markdown("---")
-st.subheader("Actions")
 context = st.session_state.get('app_context', init_context())
 lang_list = dbm.get_article_languages()
-l10n =st.selectbox("Language", 
+l10n =st.selectbox("Select Publishing Language", 
                    lang_list,
                    index=0 if not context.get('language') else lang_list.index(context.get('language')))
 update_context({'language': l10n})
-if st.button("Publish Now", type="primary"):
+if st.button(f"Publish Newsletter for {l10n}", type="primary"):
     with st.spinner("Publishing newsletter..."):
         try:
            # 定義 CSS 樣式
@@ -55,13 +50,18 @@ if st.button("Publish Now", type="primary"):
            </style>
            """
            # 顯示發布訊息和連結
+           ops_svr = context.get('ops_svr')
            st.markdown(css_style, unsafe_allow_html=True)
-           st.markdown(f'<div class="publish-message">To publish the newsletter in {l10n}, click the link below:</div>', unsafe_allow_html=True)
-           st.markdown(f'<div style="font-size: 20px;"><a href="https://bold-squirrel-vertically.ngrok-free.app/pub?lang={l10n}">FamilyTreesSubs</a></div>', unsafe_allow_html=True)
+           st.markdown(f'<div class="publish-message">Confirm to publish, click the link below:</div>', 
+                       unsafe_allow_html=True)
+           st.markdown(f'<div class="publish-message" style="font-size: 50px;"><a href="{ops_svr}/pub?lang={l10n}">FamilyTreesOps</a></div>', 
+                       unsafe_allow_html=True)
         except Exception as e:
             st.error(f"Failed to publish newsletter: {str(e)}")
 
-# Quick navigation
+# Bithday List of the Month
+st.subheader("Birthday List of the Month")
+st.markdown("🚧 Under Construction: This is the birthday list of the month.")
 st.markdown("---")
 st.subheader("Quick Navigation")
 

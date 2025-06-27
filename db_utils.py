@@ -23,7 +23,8 @@ Main Features:
 import sqlite3
 import os
 import datetime
-from email_utils import validate_email
+import json
+import csv
 from dotenv import load_dotenv  # pip install python-dotenv
 import logging
 
@@ -51,6 +52,16 @@ Article_State = {
     'approved': 1,
     'pending': 0,
     'rejected': -1
+    }
+# Values for Article categories
+Article_Categories = {
+    "news": "News", 
+    "story": "Story", 
+    "events": "Events", 
+    "faq": "faq", 
+    "about": "about",
+    "contact": "Contact",
+    "feedback": "Feedback"
     }
 
 def get_db_connection():
@@ -87,11 +98,11 @@ def init_db():
         
         # Create article table with explicit timestamp format
         cmd = f"CREATE TABLE IF NOT EXISTS {db_tables['article']}"
-        args = """ (
+        args = f""" (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             title TEXT NOT NULL,
             content TEXT NOT NULL,
-            category TEXT NOT NULL DEFAULT 'News',
+            category TEXT NOT NULL DEFAULT {Article_Categories['news']},
             author TEXT,
             source TEXT,
             src_url TEXT,
@@ -296,6 +307,82 @@ def get_subscriber(email):
             
     log.debug(f"No user found with email: {email}")
     return None
+
+def update_user(user_id, update_fields):
+    """
+    Update user information with the given fields.
+    
+    Args:
+        user_id (int): The ID of the user to update
+        update_fields (dict): Dictionary of fields to update with their new values
+                             Example: {'email': 'new@example.com', 'l10n': 'US'}
+        
+    Returns:
+        bool: True if update was successful, False otherwise
+    """
+    if not isinstance(user_id, int) or user_id <= 0:
+        log.error(f"Invalid user ID provided for update: {user_id}")
+        return False
+        
+    if not update_fields or not isinstance(update_fields, dict):
+        log.error("No update fields provided or invalid format")
+        return False
+        
+    # Remove any None values and create a clean update dictionary
+    clean_updates = {k: v for k, v in update_fields.items() if v is not None}
+    if not clean_updates:
+        log.warning("No valid fields to update")
+        return False
+        
+    # List of allowed fields that can be updated
+    allowed_fields = {'email', 'is_active', 'l10n'}
+    
+    # Filter out any fields that aren't in the allowed set
+    valid_updates = {k: v for k, v in clean_updates.items() 
+                    if k in allowed_fields and v is not None}
+                    
+    if not valid_updates:
+        log.error(f"No valid fields to update. Allowed fields: {allowed_fields}")
+        return False
+        
+    try:
+        with get_db_connection() as conn:
+            # Build the SET clause dynamically
+            set_clause = ", ".join(f"{field} = ?" for field in valid_updates.keys())
+            values = list(valid_updates.values())
+            values.append(user_id)  # Add user_id for the WHERE clause
+            
+            sql = f"""
+                UPDATE {db_tables['user']}
+                SET {set_clause}
+                WHERE id = ?
+            """
+            
+            log.debug(f"Executing: {sql} with values: {values}")
+            cursor = conn.cursor()
+            cursor.execute(sql, values)
+            rows_affected = cursor.rowcount
+            conn.commit()
+            
+            if rows_affected > 0:
+                log.info(f"Successfully updated user ID {user_id} with fields: {list(valid_updates.keys())}")
+                return True
+            else:
+                log.warning(f"No user found with ID: {user_id}")
+                return False
+                
+    except sqlite3.IntegrityError as e:
+        log.error(f"Integrity error while updating user ID {user_id}: {str(e)}")
+        if "UNIQUE constraint failed" in str(e):
+            log.error("Email address already exists in the system")
+        return False
+    except sqlite3.Error as e:
+        log.error(f"Database error while updating user ID {user_id}: {str(e)}")
+        return False
+    except Exception as e:
+        log.error(f"Unexpected error while updating user ID {user_id}: {str(e)}")
+        return False
+
 
 def delete_user(user_id):
     """
@@ -609,11 +696,13 @@ def get_article_byId(article_id):
         log.error(f"Error fetching article with ID {article_id}: {str(e)}")
         return None
 
-def get_next_article(article_id, is_censored=Article_State['pending']):
+def get_next_article(article_id, category, is_censored=Article_State['pending']):
     """
-    Retrieve the next article to be approved
+    Retrieve the next article of given category to be reviewed
     
     Args:
+        article_id (int): The ID of the article to retrieve
+        category (str): The category of the article to retrieve
         is_censored (int): The state of the article to retrieve
         
     Returns:
@@ -631,8 +720,15 @@ def get_next_article(article_id, is_censored=Article_State['pending']):
               - created_at: Creation timestamp
               - updated_at: Last update timestamp
     """
-    if not isinstance(is_censored, int) or is_censored not in Article_State.values():
-        log.warning(f"Invalid article state provided: {is_censored}")
+    if not isinstance(article_id, int) or article_id <= 0:
+        log.debug(f"Invalid article ID provided: {article_id}")
+        return None
+    cats = get_article_categories()
+    if not isinstance(category, str) or category not in cats:
+        log.debug(f"Invalid article category provided: {category}")
+        return None
+    if not isinstance(  is_censored, int) or is_censored not in Article_State.values():
+        log.debug(f"Invalid article state provided: {is_censored}")
         return None
     try:
         with get_db_connection() as conn:
@@ -641,9 +737,10 @@ def get_next_article(article_id, is_censored=Article_State['pending']):
                 SELECT * FROM {db_tables['article']}
                 WHERE is_censored = ?
                 AND id >= ?
+                AND category = ?
                 ORDER BY id ASC
                 LIMIT 1
-            """, (is_censored, article_id))
+            """, (is_censored, article_id, category))
             
             result = cursor.fetchone()
             if result:
@@ -658,24 +755,25 @@ def get_next_article(article_id, is_censored=Article_State['pending']):
         log.error(f"Error fetching article with state {is_censored}: {str(e)}")
         return None
     
-def approve_article(article_id, is_censored):
+def review_article(article_id, is_censored):
     """
-    Approve an article by its ID
+    Review an article by its ID
     
     Args:
-        article_id (int): The ID of the article to approve
+        article_id (int): The ID of the article to review
+        is_censored (int): The state of the article to set/reset
         
     Returns:
-        bool: True if approval was successful, False otherwise
+        bool: True if review was successful, False otherwise
     """
     if not article_id or not isinstance(article_id, int) or article_id <= 0:
-        log.warning(f"Invalid article ID provided: {article_id}")
+        log.debug(f"Invalid article ID provided: {article_id}")
         return False
     if get_article_byId(article_id) is None:
-        log.warning(f"No article found with ID: {article_id}")
+        log.debug(f"No article found with ID: {article_id}")
         return False
     if  is_censored not in Article_State.values():
-        log.warning(f"Invalid article state provided: {is_censored}")
+        log.debug(f"Invalid article state provided: {is_censored}")
         return False
     try:
         with get_db_connection() as conn:
@@ -688,14 +786,14 @@ def approve_article(article_id, is_censored):
             
             if cursor.rowcount > 0:
                 conn.commit()
-                log.info(f"Successfully approved article with ID: {article_id}")
+                log.info(f"Successfully set article state to {is_censored} for article with ID: {article_id}")
                 return True
             else:
-                log.warning(f"No article found with ID: {article_id}")
+                log.debug(f"No article found with ID: {article_id}")
                 return False
                 
     except sqlite3.Error as e:
-        log.error(f"Error approving article with ID {article_id}: {str(e)}")
+        log.error(f"Error setting article state to {is_censored} for article with ID {article_id}: {str(e)}")
         return False
     
 def create_article(title, content, category, author, source, src_url=None, image_url=None, l10n='US'):
@@ -716,7 +814,7 @@ def create_article(title, content, category, author, source, src_url=None, image
         int or None: The ID of the newly created article if successful, None otherwise
     """
     if not all([title, content, category, author, source]):
-        log.warning("Missing required article fields")
+        log.debug("Missing required article fields")
         return None
         
     try:
@@ -757,7 +855,7 @@ def delete_article(article_id):
         bool: True if deletion was successful, False otherwise
     """
     if not article_id or not isinstance(article_id, int) or article_id <= 0:
-        log.warning(f"Invalid article ID provided: {article_id}")
+        log.debug(f"Invalid article ID provided: {article_id}")
         return False
         
     try:
@@ -773,7 +871,7 @@ def delete_article(article_id):
                 log.info(f"Successfully deleted article with ID: {article_id}")
                 return True
             else:
-                log.warning(f"No article found with ID: {article_id}")
+                log.debug(f"No article found with ID: {article_id}")
                 return False
                 
     except sqlite3.Error as e:
@@ -796,7 +894,7 @@ def drop_table(tbl):
             # Check if table exists
             cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table' AND name='{tbl}'")
             if cursor.fetchone() is None:
-                log.warning(f"Table '{tbl}' does not exist")
+                log.debug(f"Table '{tbl}' does not exist")
                 return False
                 
             # Drop table
@@ -810,5 +908,188 @@ def drop_table(tbl):
         log.error(f"Error dropping table '{tbl}': {str(e)}")
         return False
     
+def export_users_to_file(file_path, format_type='json'):
+    """
+    Export all users from the database to a file in JSON or CSV format.
+    
+    Args:
+        file_path (str): Path where the file will be saved
+        format_type (str): Output format - 'json' or 'csv'
+        
+    Returns:
+        bool: True if export was successful, False otherwise
+    """
+    try:
+        # Create directory if it doesn't exist
+        os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT * FROM {db_tables['user']}")
+            users = cursor.fetchall()
+            
+            if not users:
+                log.warning("No users found to export")
+                return False
+                
+            # Convert to list of dicts
+            user_list = [dict(user) for user in users]
+            
+            if format_type.lower() == 'json':
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(user_list, f, indent=2, default=str)
+            elif format_type.lower() == 'csv':
+                with open(file_path, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.DictWriter(f, fieldnames=user_list[0].keys())
+                    writer.writeheader()
+                    writer.writerows(user_list)
+            else:
+                log.error(f"Unsupported format: {format_type}. Use 'json' or 'csv'")
+                return False
+                
+            log.info(f"Successfully exported {len(user_list)} users to {file_path}")
+            return True
+            
+    except Exception as e:
+        log.error(f"Error exporting users: {str(e)}")
+        return False
+
+def import_users_from_file(file_path, format_type='json'):
+    """
+    Import users from a JSON or CSV file into the database.
+    Skips users that already exist (based on email).
+    
+    Args:
+        file_path (str): Path to the import file
+        format_type (str): Input format - 'json' or 'csv'
+        
+    Returns:
+        tuple: (success_count, error_count, skipped_count)
+    """
+    success = 0
+    errors = 0
+    skipped = 0
+    
+    if not os.path.exists(file_path):
+        log.error(f"File not found: {file_path}")
+        return 0, 1, 0
+        
+    try:
+        users = []
+        if format_type.lower() == 'json':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                users = json.load(f)
+        elif format_type.lower() == 'csv':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                users = list(csv.DictReader(f))
+        else:
+            log.error(f"Unsupported format: {format_type}. Use 'json' or 'csv'")
+            return 0, 1, 0
+            
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            for user in users:
+                try:
+                    # Check if user already exists
+                    cursor.execute(
+                        f"SELECT id FROM {db_tables['user']} WHERE email = ?",
+                        (user['email'],)
+                    )
+                    if cursor.fetchone():
+                        log.debug(f"User {user['email']} already exists, skipping")
+                        skipped += 1
+                        continue
+                        
+                    # Insert new user
+                    cursor.execute(f"""
+                        INSERT INTO {db_tables['user']} 
+                        (email, token, is_active, l10n, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), 
+                        COALESCE(?, CURRENT_TIMESTAMP))
+                    """, (
+                        user.get('email'),
+                        user.get('token', ''),
+                        int(user.get('is_active', 0)),
+                        user.get('l10n', 'US'),
+                        user.get('created_at'),
+                        user.get('updated_at')
+                    ))
+                    success += 1
+                    log.debug(f"Imported user: {user.get('email')}")
+                    
+                except Exception as e:
+                    errors += 1
+                    log.error(f"Error importing user {user.get('email')}: {str(e)}")
+            
+            conn.commit()
+            
+        log.info(f"Import completed. Success: {success}, Errors: {errors}, Skipped: {skipped}")
+        return success, errors, skipped
+        
+    except Exception as e:
+        log.error(f"Error importing users: {str(e)}")
+        return success, errors + 1, skipped
+    
 # Initialize the database when this module is imported
 init_db()
+
+if __name__ == "__main__":
+    # Set up logging
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    
+    # Create data directory
+    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Test database connection first
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT name FROM sqlite_master WHERE type='table'")
+            tables = cursor.fetchall()
+            print("\nDatabase tables:")
+            for table in tables:
+                print(f"- {table[0]}")
+            
+            # Check if user table exists
+            cursor.execute(f"SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='{db_tables['user']}'")
+            if cursor.fetchone()[0] == 0:
+                print(f"\nERROR: Table '{db_tables['user']}' does not exist in the database!")
+                exit(1)
+                
+    except Exception as e:
+        print(f"\nERROR: Failed to connect to database: {str(e)}")
+        exit(1)
+    
+    # Export users
+    json_path = os.path.join(data_dir, 'users_backup.json')
+    csv_path = os.path.join(data_dir, 'users_backup.csv')
+    
+    print(f"\nExporting users to {json_path}")
+    if export_users_to_file(json_path, 'json'):
+        print(f"✓ Successfully exported to {json_path}")
+    else:
+        print(f"✗ Failed to export to {json_path}")
+    
+    print(f"\nExporting users to {csv_path}")
+    if export_users_to_file(csv_path, 'csv'):
+        print(f"✓ Successfully exported to {csv_path}")
+    else:
+        print(f"✗ Failed to export to {csv_path}")
+        
+    # Import users
+    json_path = os.path.join(data_dir, 'users_backup.json')
+    csv_path = os.path.join(data_dir, 'users_backup.csv')
+    
+    print(f"\nImporting users from {json_path}")
+    success, errors, skipped = import_users_from_file(json_path, 'json')
+    print(f"Import from JSON: Success: {success}, Errors: {errors}, Skipped: {skipped}")
+    
+    success, errors, skipped = import_users_from_file(csv_path, 'csv')
+    print(f"Import from CSV: Success: {success}, Errors: {errors}, Skipped: {skipped}")
+    
+    exit(0) 

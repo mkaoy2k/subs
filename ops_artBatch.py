@@ -431,20 +431,41 @@ class DatabaseViewer(QMainWindow):
         print(f"Loading complete, total {self.model.rowCount()} records")
         return True
 
-def main():
+def show_window(dbp=None, tbl=None):
     """
     Main function - entry point of the application
+    
+    Args:
+        dbp (str, optional): Path to the database. If None, will use default from db_utils.
+        tbl (str, optional): Table name. If None, will use default from db_utils.
     """
-    # Create application instance
+    # Create application object
     app = QApplication(sys.argv)
     
+    # If no arguments provided, use defaults from db_utils
+    if dbp is None or tbl is None:
+        import db_utils as dbm
+        dbp = dbp or dbm.dbn
+        tbl = tbl or dbm.db_tables['article']
+    
     # Create and show main window
-    window = DatabaseViewer(dbm.dbn, dbm.db_tables['article'])
+    window = DatabaseViewer(dbp, tbl)
     window.show()
     
     # Enter application main event loop
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    
+    # Set up command line argument parsing
+    parser = argparse.ArgumentParser(description='Article Batch Editor')
+    parser.add_argument('--db', type=str, help='Path to the database file')
+    parser.add_argument('--table', type=str, help='Name of the table to edit')
+    
+    # Parse command line arguments
+    args = parser.parse_args()
+    
+    # Show the window with provided or default arguments
+    show_window(args.db, args.table)

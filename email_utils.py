@@ -154,14 +154,20 @@ def send_newsletter(mail, emails, blob):
                 t2_content=blob.get('t2_content', ''),
                 t2_image=blob.get('t2_image', ''),
                 t2_image_alt=blob.get('t2_image_alt', ''),
+                t2_author=blob.get('t2_author', ''),
+                t2_source=blob.get('t2_source', ''),
+                t2_src_url=blob.get('t2_src_url', ''),
                 t3=blob.get('t3', ''),
                 t3_articles=blob.get('t3_articles', []),
                 ft_url=blob.get('ft_url', ''),
+                ops_svr=blob.get('ops_svr', ''),
                 motto_btn=blob.get('motto_btn', ''),
                 motto=blob.get('motto', ''),
                 t4_greeting=blob.get('t4_greeting', ''),
                 t4_team=blob.get('t4_team', ''),
-                title=blob.get('title', 'Newsletter')
+                title=blob.get('title', 'Newsletter'),
+                author_label=blob.get('author_label', 'Author:'),
+                source_label=blob.get('source_label', 'Source:')
             )
             log.debug(f"Successfully rendered newsletter template. HTML length: {len(html)} characters")
             log.debug(f"First 200 chars: {html[:200]}...")

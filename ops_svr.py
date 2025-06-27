@@ -22,7 +22,7 @@ from flask_mail import Mail
 import os
 from dotenv import load_dotenv
 import db_utils as dbm
-from email_utils import validate_email, generate_verification_token, send_verification_email, send_newsletter
+import email_utils as eu
 from funcUtils import load_menu, load_L10N, load_page_cat
 import logging
 
@@ -84,7 +84,7 @@ app.config.update(
 )
 
 # Initialize Flask-Mail
-mail = Mail(app)
+g_fmail = Mail(app)
 
 # Test email configuration
 log.info(f"Email server configured: {app.config['MAIL_SERVER']}:{app.config['MAIL_PORT']}")
@@ -204,14 +204,22 @@ def get_template_context():
     return {
         'menu': g_menu,
         'options': g_L10N_options,
-        'release': g_loc['RELEASE'],
+        'release': os.getenv("RELEASE", ""),
         'settings': g_loc['SETTINGS'],
+        'admin': g_loc['HOME_HTML_T4_TEAM'],
+        'admin_email': os.getenv("DB_ADMIN", ""),
+        'office_days': os.getenv("OFFICE_DAYS", "Monday - Friday"),
+        'office_hours': os.getenv("OFFICE_HOURS", "9:00 AM - 5:00 PM (PST)"),
+        'mailing_address': os.getenv("MAILING_ADDRESS", ""),
+        'mailing_city': os.getenv("MAILING_CITY", ""),
+        'mailing_country': os.getenv("MAILING_COUNTRY", ""),
         'your_language': g_loc['YOUR_LANGUAGE'],
         'subscribe': g_loc['SUBSCRIBE'],
         'unsubscribe': g_loc['UNSUBSCRIBE'],
         'email_subscription': g_loc['EMAIL_SUBSCRIPTION'],
         'motto_btn': g_loc['HOME_HTML_H2'],
         'motto': g_loc['HOME_HTML_MOTTO'],
+        'ops_svr': os.getenv("OPS_SVR", "http://localhost:5566"),
         'current_lang': g_loc_key  # Use global variable instead of session
     }    
 @app.before_request
@@ -269,7 +277,7 @@ def home():
         }
     
     context.update({
-        'release': g_loc['RELEASE'],
+        'release': os.getenv("RELEASE", ""),
         'header': g_loc['HOME_HTML_H1'],
         't1': t1,
         't1_articles': g_home.get("News", []),
@@ -303,7 +311,7 @@ def faq():
     faq_articles = g_faq['faq']
     
     context.update({
-        'release': g_loc['RELEASE'],
+        'release': os.getenv("RELEASE", ""),
         'header': g_loc['FAQ_HTML_H1'],
         'questions': [article['title'] for article in faq_articles],
         'answers': [article['content'] for article in faq_articles],
@@ -336,7 +344,7 @@ def about():
             body[1] = article['content']
             log.debug(f"Found repository article. Content length: {len(body[1])} chars")
     context.update({
-        'release': g_loc['RELEASE'],
+        'release': os.getenv("RELEASE", ""),
         'header': g_loc['ABOUT_HTML_H1'],
         'introduction': g_loc['ABOUT_INTRODUCTION_H2'],
         'repository': g_loc['ABOUT_REPOSITORY_H2'],
@@ -346,6 +354,113 @@ def about():
         'title': 'about'
     })
     return render_template('about.html', **context)
+
+
+@app.route("/privacy")
+def privacy():
+    """Privacy Policy page"""
+    global g_loc
+    
+    context = get_template_context()
+    context.update({
+        'release': os.getenv("RELEASE", ""),
+        'header': g_loc.get('PRIVACY_HEADER', 'Privacy Policy'),
+        'title': 'privacy',
+        'admin': context['admin'],
+        'admin_email': context['admin_email'],
+        'last_updated': '2024-06-26'
+    })
+    return render_template('privacy.html', **context)
+
+
+@app.route("/terms")
+def terms():
+    """Terms of Service page"""
+    global g_loc
+    
+    context = get_template_context()
+    context.update({
+        'release': os.getenv("RELEASE", ""),
+        'header': g_loc.get('TERMS_HEADER', 'Terms of Service'),
+        'title': 'terms',
+        'admin': context['admin'],
+        'admin_email': context['admin_email'],
+        'last_updated': '2024-06-26'
+    })
+    return render_template('terms.html', **context)
+
+
+@app.route("/contact", methods=['GET', 'POST'])
+def contact():
+    """Contact Us page"""
+    global g_loc
+    
+    context = get_template_context()
+    message_sent = False
+    
+    if request.method == 'POST':
+        # Get form data
+        form_data = {
+            'name': request.form.get('name', '').strip(),
+            'email': request.form.get('email', '').strip(),
+            'subject': request.form.get('subject', '').strip(),
+            'message': request.form.get('message', '').strip()
+        }
+        
+        # Basic validation
+        if not all(form_data.values()):
+            flash(g_loc.get('FIELDS_REQUIRED', 'All fields are required'), 'danger')
+        elif not eu.validate_email(form_data['email']):
+            flash(g_loc.get('EMAIL_INVALID', 'Please enter a valid email address'), 'danger')
+        else:
+            # Here send an email to admin
+            emails = [context['admin_email']]
+            if eu.send_newsletter(g_fmail, emails, form_data):
+                log.info(f"Successfully sent contact email to {emails}")
+            
+                # Here save the form data to database
+                dbm.create_article(
+                    title=form_data['subject'],
+                    content=form_data['message'],
+                    category='Contact',
+                    author=form_data['name'],
+                    source=form_data['email'],
+                    src_url=None,
+                    image_url=None,
+                    l10n=context['current_lang']
+                )
+                # In response to user, we'll just show a success message
+                message_sent = True
+                flash(f"{form_data['name']}, re:{form_data['subject']}, {g_loc.get('CONTACT_SUCCESS')}", 'success')
+                return redirect(url_for('home'))
+            else:
+                log.error(f"Failed to send contact email to {emails}")
+                flash(f"{form_data['name']}, re:{form_data['subject']}, {g_loc.get('CONTACT_FAIL')}", 'danger')
+    else:
+        form_data = {}
+    
+    context.update({
+        'release': os.getenv("RELEASE", ""),
+        'header': g_loc.get('CONTACT_HEADER', 'Contact Us'),
+        'title': 'contact',
+        'admin': context['admin'],
+        'admin_email': context['admin_email'],
+        'office_days': context['office_days'],
+        'office_hours': context['office_hours'],
+        'mailing_address': context['mailing_address'],
+        'mailing_city': context['mailing_city'],
+        'mailing_country': context['mailing_country'],
+        'form': form_data,
+        'message_sent': message_sent,
+        'form_labels': {
+            'name': g_loc.get('CONTACT_NAME', 'Your Name'),
+            'email': g_loc.get('CONTACT_EMAIL', 'Email Address'),
+            'subject': g_loc.get('CONTACT_SUBJECT', 'Subject'),
+            'message': g_loc.get('CONTACT_MESSAGE', 'Your Message'),
+            'submit': g_loc.get('CONTACT_SUBMIT', 'Send Message')
+        }
+    })
+    return render_template('contact.html', **context)
 
 @app.route("/feedback", methods=['GET', 'POST'])
 def feedback():
@@ -371,7 +486,7 @@ def feedback():
         src_url = form.source_url.data or None
         image_url = form.image_url.data or None
         email = form.email.data
-        if not validate_email(email):
+        if not eu.validate_email(email):
             log.warning(f"Invalid email address: {email}")
             flash(f'{g_loc.get("EMAIL_INVALID", "Invalid email address")}', 'danger')
             return redirect(request.referrer or url_for('home'))
@@ -485,7 +600,7 @@ def subscribe():
             # Generate verification token
             token = generate_verification_token()
             # Send verification email
-            if send_verification_email(mail, email, token, is_subscribe=True):
+            if eu.send_verification_email(g_fmail, email, token, is_subscribe=True):
                 if dbm.add_subscriber(email, token, lang=g_loc_key):
                     log.debug(f"Subscribed {email} with lang={g_loc_key}")
                     flash(f'Please check {email} to confirm subscription.', 'info')
@@ -497,7 +612,7 @@ def subscribe():
             # For unsubscribing, we can send a verification email or unsubscribe directly
             # For security, we send a verification email here
             token = generate_verification_token()
-            if send_verification_email(mail, email, token, is_subscribe=False):
+            if eu.send_verification_email(g_fmail, email, token, is_subscribe=False):
                 flash(f'Please check {email} to confirm unsubscription.', 'info')
             else:
                 flash('Failed to send verification email. Please try again later.', 'danger')
@@ -550,7 +665,8 @@ def pub_newsletter():
     """
     retrieve active subscribers' emails from db and send newsletter
     """
-    global g_loc, g_home, g_loc_key
+    global g_loc, g_home, g_loc_key, g_L10N, g_L10N_options
+    
     lang = request.args.get('lang', g_loc_key)
     if lang not in g_L10N_options:
         lang = g_loc_key
@@ -563,7 +679,8 @@ def pub_newsletter():
             
     # Update page content
     key = g_L10N_options.index(lang)
-            
+    g_home = g_PAGE[key]['home']
+    
     # Save to session
     session['current_lang'] = lang
     users = dbm.get_subscribers(state='active', lang=lang)
@@ -586,6 +703,8 @@ def pub_newsletter():
     
     context.update({
         'header': g_loc['HOME_HTML_H1'],
+        'author_label': g_loc['HTML_AUTHOR_LABEL'],
+        'source_label': g_loc['HTML_SOURCE_LABEL'],
         't1': t1,
         't1_articles': g_home["News"],
         't2': t2,
@@ -593,11 +712,15 @@ def pub_newsletter():
         't2_content': g_home["Story"][0]['content'],
         't2_image': g_home["Story"][0].get('image_url', ''),
         't2_image_alt': g_home["Story"][0].get('image_alt', ''),
+        't2_author': g_home["Story"][0].get('author', ''),
+        't2_source': g_home["Story"][0].get('source', ''),
+        't2_src_url': g_home["Story"][0].get('src_url', ''),
         't3': t3,
         't3_articles': g_home["Events"],
         't4_greeting': g_loc['HOME_HTML_T4_GREETING'],
         't4_team': g_loc['HOME_HTML_T4_TEAM'],
         'ft_url': ft_svr,
+        'ops_svr': os.getenv("OPS_SVR", "http://localhost:5566"),
         'title': g_loc['HOME_HTML_H1']
         })
     

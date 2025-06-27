@@ -5,9 +5,44 @@ This page provides functionality for managing articles in the system.
 """
 import streamlit as st
 import pandas as pd
-from streamlit import cursor
+import subprocess
+import sys
+import os
 from admin_ui import show_admin_sidebar, init_session_state
 import db_utils as dbm
+from ops_artBatch import show_window
+
+def run_article_editor(db_path, table_name):
+    """Run the article editor in a separate process.
+    
+    Args:
+        db_path (str): Path to the database
+        table_name (str): Name of the table to edit
+    """
+    try:
+        # Get the path to the current Python interpreter
+        python_exec = sys.executable
+        # Get the path to the current script
+        script_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ops_artBatch.py')
+        
+        # Start the process
+        subprocess.Popen([
+            python_exec, 
+            script_path,
+            '--db', db_path,
+            '--table', table_name
+        ], 
+        # These arguments prevent the subprocess from inheriting stdin/stdout
+        # which would prevent the Streamlit app from continuing
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        start_new_session=True)
+        
+        return True
+    except Exception as e:
+        st.error(f"Failed to start article editor: {str(e)}")
+        return False
 
 def format_timestamps(df):
     """
@@ -39,7 +74,8 @@ def format_timestamps(df):
 
 def display_article(article, info):
     """
-    Display article information in a formatted way, distributed across two columns.
+    Display article information in a formatted way, 
+    distributed across two columns.
     
     Args:
         article (dict): Article information to display
@@ -77,7 +113,16 @@ if not st.session_state.get('authenticated', False):
     st.switch_page("admin_ui.py")
     
 # Show admin sidebar
-show_admin_sidebar()
+with st.sidebar:
+    show_admin_sidebar()
+    
+    st.divider()
+    st.subheader("Article Editor")
+    if st.button("Open Article Editor"):
+        if run_article_editor(dbm.dbn, dbm.db_tables['article']):
+            st.success("Article editor launched in a separate window")
+        else:
+            st.error("Failed to launch article editor")
 
 # Main content
 st.title("Article Table Management")
@@ -98,25 +143,25 @@ with st.container():
         with col1:
             # Add numeric input box for article limit
             limit = st.number_input(
-                "Number of articles to fetch:",
+                "Number of CENSORED articles to fetch:",
                 min_value=1,
-                max_value=100,
+                max_value=10,
                 value=10,
                 step=1,
                 format="%d",
-                help="Enter the number of articles you want to retrieve (1-100)"
+                help="Enter the number of censored articles you want to retrieve (1-10)"
             )
             
         with col2:
             # Query articles by last number of days
             by_days = st.number_input(
-                "Last number of days from now:",
+                "CENSORED articles that are older than number of days from today:",
                 min_value=1,
                 max_value=365,
                 value=7,
                 step=1,
                 format="%d",
-                help="Enter the number of days by which you want to query articles"
+                help="Enter the number of days by which you want to query censored articles"
             )
         
         # Initialize articles variable
@@ -131,7 +176,7 @@ with st.container():
                 
         with btn12:
             if st.button("Query by days"):
-                articles = dbm.get_articles_byDays(cat, byDays=by_days)
+                articles = dbm.get_articles_byDays(cat, by_days=by_days)
                 
         info1, info2 = st.columns([15,1])
         # Display results if articles were found
@@ -173,18 +218,18 @@ with st.container():
                 else:
                     st.error(f"Article with ID {cursor_id} not found")
         with btn22:
-            if st.button("Query Next by State"):
+            if st.button("Query Next Feedback by State"):
                 result = dbm.get_next_article(
-                    cursor_id, 
+                    cursor_id, dbm.Article_Categories['feedback'], 
                     is_censored=dbm.Article_State[article_state]
                     )
                 if result is not None:
                     article_id, article = result
                     display_article(article, info1)
                     st.session_state.article_id = article_id
-                    st.success(f"Retrieved '{article_state}' article with ID: {article_id}")
+                    st.success(f"Retrieved '{article_state}' feedback with ID: {article_id}")
                 else:
-                    st.error(f"No '{article_state}' article found with ID: {cursor_id}")
+                    st.error(f"No '{article_state}' feedback found with ID: {cursor_id}")
         # Show delete button
         with st.expander("Danger Zone", expanded=False):
             st.warning("⚠️ This action cannot be undone!")
@@ -194,33 +239,65 @@ with st.container():
                 else:
                     st.error(f"❌ Failed to delete article Id: {cursor_id}")
         
-        # --- Review pending articles --- from here
+        # --- Review pending feedback --- from here
         st.markdown("""---""")
-        st.subheader("Review Pending Articles")
+        st.subheader("Review Pending Feedback")
         info3, info4 = st.columns([15,1])
-        result = dbm.get_next_article(1)
+        result = dbm.get_next_article(1, 
+                        dbm.Article_Categories['feedback'], 
+                        is_censored=dbm.Article_State['pending'])
         if result is None:
             st.info("No more articles to review")
-            st.stop()
-        review_id, article = result
-        display_article(article, info3)
+        else:
+            review_id, article = result
+            display_article(article, info3)
         
-        btn31, btn32 = st.columns([5, 5])
+            btn31, btn32 = st.columns([5, 5])
 
-        with btn31:
-            if st.button(f"Approve Id: {review_id}"):
-                if dbm.approve_article(review_id, dbm.Article_State['approved']):
-                    st.success(f"✅ Approved article with ID: {review_id}")
-                else:
-                    st.error(f"❌ Failed to approve article with ID {review_id}")
+            with btn31:
+                if st.button(f"Approve Id: {review_id}"):
+                    if dbm.review_article(review_id, dbm.Article_State['approved']):
+                        st.success(f"✅ Approved feedback with ID: {review_id}")
+                    else:
+                        st.error(f"❌ Failed to approve feedback with ID {review_id}")
         
-        with btn32:
-            if st.button(f"Reject Id: {review_id}"):
-                if dbm.approve_article(review_id, dbm.Article_State['rejected']):
-                    st.success(f"✅ Rejected article with ID: {review_id}")
-                else:
-                    st.error(f"❌ Failed to reject article with ID {review_id}")
-    
+            with btn32:
+                if st.button(f"Reject Id: {review_id}"):
+                    if dbm.review_article(review_id, dbm.Article_State['rejected']):
+                        st.success(f"✅ Rejected feedback with ID: {review_id}")
+                    else:
+                        st.error(f"❌ Failed to reject feedback with ID {review_id}")
+        
+        # --- Review Pending Contact --- from here
+        st.markdown("""---""")
+        st.subheader("Review Pending Contact")
+        info5, info6 = st.columns([15,1])
+        result = dbm.get_next_article(1,
+                        dbm.Article_Categories['contact'],
+                        is_censored=dbm.Article_State['pending'])
+        if result is None:
+            st.info("No more contacts to review")
+            st.stop()
+        else:
+            review_id, article = result
+            display_article(article, info5)
+        
+            btn41, btn42 = st.columns([5, 5])
+
+            with btn41:
+                if st.button(f"Approve Id: {review_id}"):
+                    if dbm.review_article(review_id, dbm.Article_State['approved']):
+                        st.success(f"✅ Approved contact with ID: {review_id}")
+                    else:
+                        st.error(f"❌ Failed to approve contact with ID {review_id}")
+        
+            with btn42:
+                if st.button(f"Reject Id: {review_id}"):
+                    if dbm.review_article(review_id, dbm.Article_State['rejected']):
+                        st.success(f"✅ Rejected contact with ID: {review_id}")
+                    else:
+                        st.error(f"❌ Failed to reject contact with ID {review_id}")
+     
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
         st.exception(e)  # This will show the full traceback for debugging

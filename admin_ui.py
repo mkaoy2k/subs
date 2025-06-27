@@ -8,6 +8,7 @@ import streamlit as st
 import sqlite3
 import db_utils as dbm
 import auth_utils
+import os
 
 # Import database operations
 from ops_dbMgmt import init_db_management, init_admin_features, get_table_structure, drop_table
@@ -284,7 +285,7 @@ def main():
     """Main application entry point"""
     # Set page config
     st.set_page_config(
-        page_title="Admin DBM",
+        page_title="Admin DBM " + os.getenv("RELEASE", ""),
         page_icon="🔒",
         layout="wide",
         initial_sidebar_state="expanded"

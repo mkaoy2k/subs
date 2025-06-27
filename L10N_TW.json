@@ -1,11 +1,11 @@
 {
-    "RELEASE" : "pre-1.2",
     "SETTINGS" : "設定",
     "YOUR_LANGUAGE" : "語言",
     "SUBSCRIBE" : "訂閱",
     "UNSUBSCRIBE" : "取消訂閱",
     "EMAIL_SUBSCRIPTION" : "電子郵件訂閱",
     "EMAIL_INVALID" : "電子郵件地址格式錯誤",
+    "FIELDS_REQUIRED" : "必填欄位未填寫",
     "HTML_AUTHOR_LABEL" : "作者：",
     "HTML_SOURCE_LABEL" : "來源：",
     "HOME_HTML_H1" : "渤海漚汪高氏族譜通訊期刊",
@@ -46,5 +46,7 @@
     "NO_ACTIVE_SUBSCRIBERS" : "未找到訂閱者",
     "NO_EMAILS_FOUND" : "未找到有效電子郵件",
     "PUB_HTML_SUCCESS" : "通訊期刊已成功發送。",
-    "PUB_HTML_FAIL" : "通訊期刊發送失敗，請稍後再試。"
+    "PUB_HTML_FAIL" : "通訊期刊發送失敗，請稍後再試。",
+    "CONTACT_SUCCESS" : "您的訊息已成功發送，感謝您的聯繫！",
+    "CONTACT_FAIL" : "您的訊息未成功發送，請稍後再試！"
 }
