@@ -40,6 +40,7 @@ wip.py
 
 # FamilyTrees Data files
 data/*
+!data/users.db
 
 # Streamlit Examples
 main.py
