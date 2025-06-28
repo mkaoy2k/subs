@@ -14,7 +14,7 @@ load_dotenv()
 # These settings can be imported by other modules using context_utils
 
 # General Settings
-TIMEZONE = "UTC"
+TIMEZONE = os.getenv("TIMEZONE", "UTC")
 ENABLE_MAINTENANCE = False
 SITE_TITLE = "Admin DBM"
 RELEASE = os.getenv("RELEASE", "")
@@ -22,10 +22,7 @@ RELEASE = os.getenv("RELEASE", "")
 # Language Settings
 language_list = dbm.get_article_languages()
 LANGUAGES = language_list
-if language_list:
-    LANGUAGE = language_list[0]
-else:
-    LANGUAGE = "US"
+LANGUAGE = os.getenv("L10N", "US")
 
 # Email Settings
 EMAIL_NOTIFICATIONS = True
@@ -42,6 +39,12 @@ MAX_LOGIN_ATTEMPTS = 5
 # Server Settings
 OPS_SVR=os.getenv("OPS_SVR", "http://localhost:5555")
 
+# File System Settings
+FILE_SYSTEM_SETTINGS = {
+    'dir_path': os.getenv("FSS_DIR_PATH", "./data"),
+    'file_name': os.getenv("FSS_FILE_NAME", "users"),
+    'file_type': os.getenv("FSS_FILE_TYPE", "CSV")
+}
 # ===== End of Module Settings =====
 
 def init_context() -> Dict[str, Any]:
@@ -65,7 +68,8 @@ def init_context() -> Dict[str, Any]:
         'items_per_page': ITEMS_PER_PAGE,
         'password_reset_timeout': PASSWORD_RESET_TIMEOUT,
         'max_login_attempts': MAX_LOGIN_ATTEMPTS,
-        'ops_svr': OPS_SVR
+        'ops_svr': OPS_SVR,
+        'fss': FILE_SYSTEM_SETTINGS
     }
     
     return default_settings

@@ -744,7 +744,7 @@ def main():
     """
     log.info("Starting FamilyTreesOps server...")
     # app.run(host='0.0.0.0', port=5555, use_reloader=False)
-    app.run(port=5566, debug=True, use_reloader=True)
+    app.run(port=5566, debug=True)
 
 # Initialize global variables
 init_globals()
