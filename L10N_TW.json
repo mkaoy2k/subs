@@ -38,15 +38,17 @@
     "FEEDBACK_IMAGE_URL" : "圖片網址",
     "FEEDBACK_EMAIL" : "電子郵件",
     "FEEDBACK_SUBMIT" : "投稿",
-    "ARTICLE_SUCCESS" : "您的文章已提交審核，感謝您的投稿！",
+    "FEEDBACK_SUCCESS" : "您的文章已提交審核，感謝您的投稿！",
+    "FEEDBACK_RETRY" : "文章未建立，請稍後再重新投稿。",
+    "FEEDBACK_ERROR" : "文章未建立，請稍後再重新投稿。",
     "ADD_SUB_ERROR" : "訂閱者未建立/更新，請稍後再重新訂閱。",
     "EMAIL_SUB_NEEDED" : "請先訂閱您的電子郵件，再投稿文章。",
     "EMAIL_CONFIRM_NEEDED" : "請先確認您的電子郵件，再投稿文章。",
-    "ARTICLE_RETRY" : "文章未建立，請稍後再重新投稿。",
     "NO_ACTIVE_SUBSCRIBERS" : "未找到訂閱者",
     "NO_EMAILS_FOUND" : "未找到有效電子郵件",
     "PUB_HTML_SUCCESS" : "通訊期刊已成功發送。",
     "PUB_HTML_FAIL" : "通訊期刊發送失敗，請稍後再試。",
-    "CONTACT_SUCCESS" : "您的訊息已成功發送，感謝您的聯繫！",
-    "CONTACT_FAIL" : "您的訊息未成功發送，請稍後再試！"
+    "ADD_CONTACT_ERROR" : "聯絡者未建立/更新，請稍後再重新聯絡。",
+    "CONTACT_SUCCESS" : "您的聯絡訊息已處理中，請等候通知感謝您的聯繫！",
+    "CONTACT_FAIL" : "您的聯絡訊息未能接受處理，請稍後再試！"
 }

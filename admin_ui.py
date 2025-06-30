@@ -9,6 +9,8 @@ import sqlite3
 import db_utils as dbm
 import auth_utils
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # Import database operations
 from ops_dbMgmt import init_db_management, init_admin_features, get_table_structure, drop_table

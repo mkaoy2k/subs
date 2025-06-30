@@ -38,15 +38,17 @@
     "FEEDBACK_IMAGE_URL" : "Image URL",
     "FEEDBACK_EMAIL" : "Email",
     "FEEDBACK_SUBMIT" : "Submit",
-    "ARTICLE_SUCCESS" : "Your article has been submitted for review. Thank you!",
+    "FEEDBACK_SUCCESS" : "Your feedback has been submitted for review. Thank you!",
+    "FEEDBACK_RETRY" : "Feedback not created. Please re-submit feedback later.",
+    "FEEDBACK_ERROR" : "An error occurred. Please try again.",
     "ADD_SUB_ERROR" : "Subscriber not created/updated. Please subscribe again later.",
     "EMAIL_SUB_NEEDED" : "Please subscribe your email before submitting article.",
     "EMAIL_CONFIRM_NEEDED" : "Please confirm your email before submitting article.",
-    "ARTICLE_RETRY" : "Article not created. Please re-submit article later.",
     "NO_ACTIVE_SUBSCRIBERS" : "No active subscribers found",
     "NO_EMAILS_FOUND" : "No valid emails found",
     "PUB_HTML_SUCCESS" : "Newsletter sent successfully.",
     "PUB_HTML_FAIL" : "Newsletter sent failed, please try later.",
-    "CONTACT_SUCCESS" : "Your message has been sent. We will get back to you soon!",
-    "CONTACT_FAIL" : "Your message has not been sent. Please try again later!"
+    "ADD_CONTACT_ERROR" : "Contact request not created/updated. Please try again later.",
+    "CONTACT_SUCCESS" : "Your contact request has been processed. We will get back to you soon!",
+    "CONTACT_FAIL" : "Your contact request has not been processed. Please try again later!"
 }

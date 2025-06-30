@@ -18,6 +18,7 @@ flask --app ops_svr run -p 5555
 """
 
 from flask import Flask, request, redirect, render_template, flash, url_for, session, jsonify
+from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_mail import Mail
 import os
 from dotenv import load_dotenv
@@ -68,6 +69,9 @@ log.propagate = False
 # Add after Flask app initialization
 app = Flask(__name__, template_folder='templates')
 app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-for-testing')  # Set a secure key in production environment
+
+# Initialize CSRF protection
+csrf = CSRFProtect(app)
 
 # Configure Flask-Mail with SSL on port 465
 app.config.update(
@@ -392,54 +396,80 @@ def terms():
 
 @app.route("/contact", methods=['GET', 'POST'])
 def contact():
+    from forms import ContactForm
+    
     """Contact Us page"""
     global g_loc
     
     context = get_template_context()
     message_sent = False
+    form = ContactForm()
     
-    if request.method == 'POST':
+    if form.validate_on_submit():
         # Get form data
         form_data = {
-            'name': request.form.get('name', '').strip(),
-            'email': request.form.get('email', '').strip(),
-            'subject': request.form.get('subject', '').strip(),
-            'message': request.form.get('message', '').strip()
+            'name': form.name.data.strip(),
+            'email': form.email.data.strip(),
+            'subject': form.subject.data.strip(),
+            'message': form.message.data.strip()
         }
         
-        # Basic validation
-        if not all(form_data.values()):
-            flash(g_loc.get('FIELDS_REQUIRED', 'All fields are required'), 'danger')
-        elif not eu.validate_email(form_data['email']):
-            flash(g_loc.get('EMAIL_INVALID', 'Please enter a valid email address'), 'danger')
+        # Check if user exists, if not create a new user
+        user = dbm.get_subscriber(form_data['email'])
+        if not user:
+            user_id = dbm.create_user(form_data['email'], dbm.Subscriber_State['in_contact'], lang=context['current_lang'])
+            if not user_id:
+                flash(g_loc.get('ADD_CONTACT_ERROR', 'Contact not created/updated. Please try again later.'), 'danger')
+                return redirect(url_for('contact'))
         else:
-            # Here send an email to admin
-            emails = [context['admin_email']]
-            if eu.send_newsletter(g_fmail, emails, form_data):
-                log.info(f"Successfully sent contact email to {emails}")
+            user_id = user['id']
+        # Save the form data to database
+        article_id = dbm.create_article(
+            title=form_data['subject'],
+            content=form_data['message'],
+            category=dbm.Article_Categories['contact'],
+            author=form_data['name'],
+            source=form_data['email'],
+            src_url='',
+            image_url='',
+            l10n=context['current_lang'],
+            sub_id=user_id
+        )
             
-                # Here save the form data to database
-                dbm.create_article(
-                    title=form_data['subject'],
-                    content=form_data['message'],
-                    category='Contact',
-                    author=form_data['name'],
-                    source=form_data['email'],
-                    src_url=None,
-                    image_url=None,
-                    l10n=context['current_lang']
-                )
-                # In response to user, we'll just show a success message
-                message_sent = True
-                flash(f"{form_data['name']}, re:{form_data['subject']}, {g_loc.get('CONTACT_SUCCESS')}", 'success')
-                return redirect(url_for('home'))
+        if article_id:
+            log.info(f"Created contact form article successfully withID: {article_id}")
+            # Send email to admin
+            to_emails = [context.get('admin_email')]
+            subject = f"New Contact Article: {article_id}"
+            html = f"""
+            <p>Subject: {form_data['subject']}</p>
+            <p>Content: {form_data['message']}</p>
+            <p>Author: {form_data['name']}</p>
+            <p>Source: {form_data['email']}</p>
+            """
+            if eu.send_email(g_fmail, to_emails, subject, html):
+                log.info(f"Successfully sent contact email to {to_emails}")
             else:
-                log.error(f"Failed to send contact email to {emails}")
-                flash(f"{form_data['name']}, re:{form_data['subject']}, {g_loc.get('CONTACT_FAIL')}", 'danger')
-    else:
-        form_data = {}
+                log.error(f"Failed to send contact email to {to_emails}")
+            message_sent = True
+            flash(g_loc.get('CONTACT_SUCCESS', 'Your contact request has been sent. We will get back to you soon!'), 'success')
+            return redirect(url_for('contact'))
+        else:
+            log.error("Failed to create contact form article")
+            flash(g_loc.get('CONTACT_ERROR', 'Failed to send contact request. Please try again later.'), 'danger')
     
+    # Initialize form_data with empty values if not set
+    if 'form_data' not in locals():
+        form_data = {
+            'name': '',
+            'email': '',
+            'subject': '',
+            'message': ''
+        }
+    
+    # Add form data to context
     context.update({
+        'form': form,
         'release': os.getenv("RELEASE", ""),
         'header': g_loc.get('CONTACT_HEADER', 'Contact Us'),
         'title': 'contact',
@@ -450,7 +480,6 @@ def contact():
         'mailing_address': context['mailing_address'],
         'mailing_city': context['mailing_city'],
         'mailing_country': context['mailing_country'],
-        'form': form_data,
         'message_sent': message_sent,
         'form_labels': {
             'name': g_loc.get('CONTACT_NAME', 'Your Name'),
@@ -468,72 +497,134 @@ def feedback():
     Feedback page for article submission
     """
     from forms import ArticleForm
+    from werkzeug.datastructures import MultiDict
     
     context = get_template_context()
     lang = session.get('current_lang', 'US')
     
-    # Initialize form with current language
-    form = ArticleForm(lang=lang)
-    
-    if form.validate_on_submit():
-        # Process the form data
-        title = form.title.data
-        content = form.content.data
-        category = form.category.data
-        l10n = form.l10n.data
-        author = form.author.data
-        source = form.source.data
-        src_url = form.source_url.data or None
-        image_url = form.image_url.data or None
-        email = form.email.data
-        if not eu.validate_email(email):
-            log.warning(f"Invalid email address: {email}")
-            flash(f'{g_loc.get("EMAIL_INVALID", "Invalid email address")}', 'danger')
-            return redirect(request.referrer or url_for('home'))
+    # Initialize form based on request method
+    if request.method == 'POST':
+        log.debug(f"Form data received: {request.form}")
         
-        # Check if user is a subscriber, if not add them as pending
-        subscriber = dbm.get_subscriber(email)
-        if not subscriber:
-            log.info(f"New subscriber detected: {email}, adding to pending")
-            if not dbm.add_subscriber(email, 'pending_verification', lang=lang):
-                log.error(f"Failed to add new subscriber: {email}")
-                flash(f'{g_loc.get("ADD_SUB_ERROR", "Subscriber not created/updated. Please subscribe again later.")}', 'danger')
-                return redirect(request.referrer or url_for('home'))
-            flash(f'{g_loc.get("EMAIL_SUB_NEEDED", "Please subscribe with your email before submitting articles.")}', 'danger')
-            return redirect(url_for('feedback'))
-        elif subscriber.get('is_active') != dbm.Subscriber_State['active']:  # Check if subscriber is not active
-            log.warning(f"Non-active subscriber attempted submission: {email}")
-            flash(f'{g_loc.get("EMAIL_CONFIRM_NEEDED", "Please confirm your email {email} before submitting content.")}', 'danger')
-            return redirect(url_for('feedback'))
-        log.debug(f"Article form data: {form.data}")
-        log.debug(f"Article form errors: {form.errors}")
+        # Create form with data from request using formdata
+        form = ArticleForm(formdata=request.form, meta={'csrf': True}, lang=lang)
         
-        # Create the article in the database
-        article_id = dbm.create_article(
-            title=title,
-            content=content,
-            category=category,
-            author=author,
-            source=source,
-            src_url=src_url,
-            image_url=image_url,
-            l10n=l10n
-        )
+        # Manually populate the form data
+        for field in form:
+            if field.name in request.form:
+                field.data = request.form[field.name]
         
-        if article_id:
-            log.debug(f"Successfully created article with ID: {article_id}")
-            flash(f'{g_loc.get("ARTICLE_SUCCESS", "Submitted successfully")}', 'success')            # Redirect to home page after successful submission
-            return redirect(url_for('home'))
+        # Log form data before validation
+        log.debug(f"Form data before validation: {form.data}")
+        log.debug(f"Request form data: {dict(request.form)}")
+        
+        # Process the form data if validation passes
+        if form.validate():
+            log.debug("Form validation passed")
+            log.debug(f"Form data after validation: {form.data}")
+            
+            # Process the form data
+            title = form.title.data
+            content = form.content.data
+            l10n = form.l10n.data
+            author = form.author.data
+            source = form.source.data
+            src_url = form.source_url.data or None
+            image_url = form.image_url.data or None
+            email = form.email.data
+            
+            # Validate email format
+            if not eu.validate_email(email):
+                log.warning(f"Invalid email address: {email}")
+                flash(f'{g_loc.get("EMAIL_INVALID", "Invalid email address")}', 'danger')
+            else:
+                # Check if user is a subscriber, if not add them as pending
+                subscriber = dbm.get_subscriber(email)
+                if not subscriber:
+                    log.info(f"New subscriber detected: {email}, adding to pending")
+                    if not dbm.add_subscriber(email, 'pending_verification', lang=lang):
+                        log.error(f"Failed to add new subscriber: {email}")
+                        flash(f'{g_loc.get("ADD_SUB_ERROR", "Subscriber not created/updated. Please try again later.")}', 'danger')
+                    else:
+                        flash(f'{g_loc.get("EMAIL_SUB_NEEDED", "Please check your email to confirm your subscription before submitting articles.")}', 'warning')
+                elif subscriber.get('is_active') != dbm.Subscriber_State['active']:  # Check if subscriber is not active
+                    log.warning(f"Non-active subscriber attempted submission: {email}")
+                    flash(f'{g_loc.get("EMAIL_CONFIRM_NEEDED", f"Please confirm your email {email} before submitting content.")}', 'warning')
+                else:
+                    # Only proceed with article creation if all validations pass
+                    try:
+                        # Create the article in the database
+                        article_id = dbm.create_article(
+                            title=title,
+                            content=content,
+                            category=dbm.Article_Categories['feedback'],
+                            author=author,
+                            source=source,
+                            src_url=src_url,
+                            image_url=image_url,
+                            sub_id=subscriber['id'],
+                            l10n=l10n
+                        )
+                        
+                        if article_id:
+                            log.debug(f"Successfully created article with ID: {article_id}")
+                            
+                            # Send email to admin
+                            to_emails = [context.get('admin_email')]
+                            subject = f"New Feedback Article: {article_id}"
+                            html = f"""
+                            <p>Subject: {title}</p>
+                            <p>Content: {content}</p>
+                            <p>Author: {author}</p>
+                            <p>Source: {source}</p>
+                            <p>Source URL: {src_url}</p>
+                            <p>Image URL: {image_url}</p>
+                            """
+                            if eu.send_email(g_fmail, 
+                                to_emails, 
+                                subject, html):
+                                log.info(f"Successfully sent feedback email to {to_emails}")
+                            else:
+                                log.error(f"Failed to send feedback email to {to_emails}")
+                            
+                            flash(f'Ticket:{article_id}, {g_loc.get("FEEDBACK_SUCCESS", "Submitted successfully")}', 'success')
+                            # Redirect to home page after successful submission
+                            return redirect(url_for('home'))
+                        else:
+                            log.error("Failed to create article in database")
+                            flash(f'{g_loc.get("FEEDBACK_RETRY", "Article not created. Please try again later.")}', 'danger')
+                    except Exception as e:
+                        log.error(f"Error creating article: {str(e)}")
+                        flash(f'{g_loc.get("FEEDBACK_ERROR", "An error occurred. Please try again.")}', 'danger')
         else:
-            log.debug(f"Failed to create article")
-            flash(f'{g_loc.get("ARTICLE_RETRY", "Article not created. Please re-submit later.")}', 'danger')
+            log.warning(f"Form validation failed: {form.errors}")
+            # Log each field's error for debugging
+            for field, errors in form.errors.items():
+                for error in errors:
+                    log.warning(f"Field '{field}': {error}")
+    else:
+        # Initialize empty form for GET request
+        form = ArticleForm(meta={'csrf': True}, lang=lang)
     
-    # Get template context for rendering
+    # Update context with form data
     context.update({
         'header': g_loc.get('FEEDBACK_HTML_H1', 'Submit Feedback'),
         'title': 'feedback',
         'form': form,
     })
+    
+    # Log form state before rendering
+    log.debug(f"Form data before render: {form.data}")
+    log.debug(f"Form errors before render: {form.errors}")
+    log.debug(f"Form is bound: {form.is_submitted()}")
+    log.debug(f"Form validate on submit: {form.validate_on_submit()}")
+    log.debug(f"CSRF Token: {form.csrf_token.current_token if hasattr(form, 'csrf_token') else 'No CSRF token'}")
+    
+    # Debug: Log all form fields and their data
+    log.debug("=== Form Field Values ===")
+    for field_name, field in form._fields.items():
+        log.debug(f"Field: {field_name}, Type: {type(field).__name__}, Data: {field.data}, Raw Data: {field.raw_data}, Errors: {field.errors}")
+    log.debug("=======================")
     
     return render_template('feedback.html', **context)
 
@@ -743,8 +834,8 @@ def main():
     Start Flask server
     """
     log.info("Starting FamilyTreesOps server...")
-    # app.run(host='0.0.0.0', port=5555, use_reloader=False)
-    app.run(port=5566, debug=True)
+    # app.run(host='0.0.0.0', port=os.getenv("OPS_SVR_PORT", 5555), use_reloader=False)
+    app.run(port=os.getenv("OPS_SVR_PORT", 5566), debug=True)
 
 # Initialize global variables
 init_globals()

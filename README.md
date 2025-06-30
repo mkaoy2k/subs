@@ -1,140 +1,147 @@
-# 📰 家庭樹電子報訂閱系統 (FamilyTreesOps, subs in short)
+# 📰 Family Tree Newsletter Subscription System (FamilyTreesOps, or subs for short)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-## 📖 專案介紹
+## 📖 Project Introduction
 
-FamilyTreesOps 電子報訂閱系統是一個專為家庭設計的網路服務，讓家庭成員能夠輕鬆訂閱和接收家庭相關新聞與活動資訊。系統提供完整的前後端服務，包括訂閱管理、內容發布和用戶驗證等功能。
+FamilyTreesOps Journal System is a web service designed for families, allowing family members to easily subscribe to and receive family-related news and event information. The system provides complete front-end and back-end services, including subscription management, newsletter publishing, and editorial verification features.
 
-### ✨ 主要功能
+### ✨ Key Features
 
-- **會員系統**
-  - 編輯者安全登入與註冊
-  - 訂閱者開放註冊
-  - 電子郵件驗證
-  - 密碼重設與管理
+- **Membership System**
+  - Secure login and registration for editors
+  - Open registration for subscribers
+  - Email verification
+  - Password reset and management
 
-- **內容管理**
-  - 電子報發布與管理
-  - 訂閱狀態追蹤
-  - 內容審核系統
-  - 用戶反饋收集
+- **Content Management**
+  - Newsletter publishing and management
+  - Subscription status tracking
+  - Content review system
+  - User feedback collection
 
-- **多語言支援**
-  - 繁體中文 (預設)
-  - 英文 (美國)
-  - 可輕鬆擴充其他語言
+- **Multi-language Support**
+  - Traditional Chinese (default)
+  - English (US)
+  - Easily extendable to other languages
 
-## 🚀 快速開始
+## 🚀 Quick Start
 
-### 系統需求
+### System Requirements
 
-- Python 3.8 或更新版本
-- SQLite 3 (內建)
-- 電子郵件服務 (如 Gmail)
+- Python 3.8 or newer
+- SQLite 3 (built-in)
+- Email service (e.g., Gmail)
 
-### 安裝步驟
+### Installation Steps
 
-1. **克隆儲存庫**
+1. **Clone the Repository**
 
    ```bash
    git clone https://github.com/mkaoy2k/subs.git
    cd subs
    ```
 
-2. **建立虛擬環境 (建議)**
+2. **Create Virtual Environment (Recommended)**
 
    ```bash
    python -m venv .venv
    source .venv/bin/activate  # Linux/Mac
-   # 或
+   # or
    .\.venv\Scripts\activate  # Windows
    ```
 
-3. **安裝相依套件**
+3. **Install Dependencies**
 
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **設定環境變數**
+4. **Configure Environment Variables**
 
    ```bash
    cp template.env.txt .env
    ```
 
-   編輯 `.env` 檔案，根據您的環境進行設定：
-   - 設定資料庫路徑
-   - 配置電子郵件服務
-   - 設定應用程式金鑰
-   - 配置伺服器網址
+   Edit the `.env` file to tailor your environment:
+   - Set server paths
+   - Set your language, release, and version etc.
+   - Configure email service
+   - Set application secret key
+   - Configure server URL
 
-5. **初始化資料目錄**
+   Edit `L10N.json` if your language is newly added. The default languages are Traditional Chinese (繁中) and English (US).
+
+   Edit `L10N_<your language>.json` if your language is newly added. The default localization files included are Traditional Chinese `L10N_TW.json` and English `L10N_US.json`.
+
+   Edit `ops_svr.py` for your production Flask server. For example, you can set `DEBUG = False` and `HOST = '0.0.0.0'`.
+
+5. **Initialize Data Directory**
 
    ```bash
    mkdir -p data
    ```
 
-6. **初始化 Admin user 資料庫**
+6. **Initialize Admin User Database**
 
    ```bash
    python genesis.py
    ```
 
-## 🛠️ 執行系統
+## 🛠️ Running the System
 
-### 啟動後端伺服器
+### Start Backend Server
 
 ```bash
 python ops_svr.py
 ```
 
-### 啟動管理介面 (編輯者使用)
+### Start Admin Interface (For Editors)
 
 ```bash
 streamlit run admin_ui.py
 ```
 
-## ⚙️ 環境變數說明
+## ⚙️ Environment Variables
 
-| 變數名稱 | 說明 | 範例 | 必填 |
-|---------|------|------|------|
-| `DB_SVR` | 資料庫伺服器類型 | `sqlite3` | 是 |
-| `DB_NAME` | 資料庫檔案路徑 | `data/users.db` | 是 |
-| `DB_ADMIN` | 管理員電子郵件 | `admin@example.com` | 是 |
-| `DB_ADMIN_PW` | 管理員密碼 | `your-secure-password` | 是 |
-| `OPS_SVR` | Operations 伺服器網址 | `http://localhost:5000` | 是 |
-| `FT_SVR` | FamilyTreesPE 伺服器網址 | `http://example.com` | 是 |
-| `MAIL_SERVER` | 郵件伺服器 | `smtp.gmail.com` | 是 |
-| `MAIL_USERNAME` | 郵件帳號 | `your-email@gmail.com` | 是 |
-| `MAIL_PASSWORD` | 郵件密碼或應用程式密碼 | `your-app-password` | 是 |
-| `MAIL_DEFAULT_SENDER` | 預設寄件者 | `your-email@gmail.com` | 是 |
-| `APP_NAME` | 應用程式名稱 | `FamilyTreesOps` | 是 |
-| `SECRET_KEY` | 應用程式密鑰 | 隨機字串 | 是 |
-| `BASE_URL` | 應用程式網址 | `http://localhost:5000` | 是 |
-| `ARTICLE_WINDOW` | 文章顯示天數 | `7` | 否 |
-| `L10N` | 預設語言 | `繁中` 或 `US` | 否 |
-| `LOGGING` | 日誌等級 | `INFO` 或 `DEBUG` | 否 |
-| `OPS_MENU_FILE` | 選單設定檔 | `ops_menu.json` | 是 |
+| Variable Name | Description | Example | Required |
+|--------------|-------------|---------|----------|
+| `DB_SVR` | Database server type | `sqlite3` | Yes |
+| `DB_NAME` | Database file path | `data/users.db` | Yes |
+| `DB_ADMIN` | Admin email | `admin@example.com` | Yes |
+| `DB_ADMIN_PW` | Admin password | `your-secure-password` | Yes |
+| `OPS_SVR` | Operations server URL | `http://localhost:5000` | Yes |
+| `FT_SVR` | FamilyTreesPE server URL | `http://example.com` | Yes |
+| `MAIL_SERVER` | Mail server | `smtp.gmail.com` | Yes |
+| `MAIL_USERNAME` | Email account | `your-email@gmail.com` | Yes |
+| `MAIL_PASSWORD` | Email password or app password | `your-app-password` | Yes |
+| `MAIL_DEFAULT_SENDER` | Default sender | `your-email@gmail.com` | Yes |
+| `APP_NAME` | Application name | `FamilyTreesOps` | Yes |
+| `SECRET_KEY` | Application secret key | Random string | Yes |
+| `BASE_URL` | Application URL | `http://localhost:5000` | Yes |
+| `ARTICLE_WINDOW` | Article display window (days) | `7` | No |
+| `L10N` | Default language | `zh_TW` or `en_US` | No |
+| `LOGGING` | Logging level | `INFO` or `DEBUG` | No |
+| `OPS_MENU_FILE` | Menu configuration file | `ops_menu.json` | Yes |
 
-## 🤝 貢獻指南
+## 🤝 Contributing
 
-歡迎提交 Pull Request 來改進這個專案！請遵循以下步驟：
+We welcome contributions to improve this project! Please follow these steps:
 
-1. Fork 儲存庫
-2. 建立功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交您的修改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 開啟 Pull Request
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-## 📄 授權
+## 📄 License
 
-本專案採用 [MIT](LICENSE) 授權條款
+This project is licensed under the [MIT](LICENSE) License
 
-## 📬 聯絡我們
+## 📬 Contact Us
 
-如有任何問題或建議，請聯繫：
+For any questions or suggestions, please contact:
 
 - [Michael Kao](mailto:mkaoy2k@gmail.com)
 - [GitHub Issues](https://github.com/mkaoy2k/subs/issues)

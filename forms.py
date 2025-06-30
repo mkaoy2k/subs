@@ -1,8 +1,11 @@
 from flask_wtf import FlaskForm
 from wtforms import StringField, TextAreaField, SelectField, SubmitField
 from wtforms.validators import DataRequired, Email, Optional, URL, Length
-import email_utils as eu
-
+class ContactForm(FlaskForm):
+    name = StringField('Name', validators=[DataRequired()])
+    email = StringField('Email', validators=[DataRequired(), Email()])
+    subject = StringField('Subject', validators=[DataRequired()])
+    message = TextAreaField('Message', validators=[DataRequired()])
 class ArticleForm(FlaskForm):
     """Form for submitting new articles"""
     def __init__(self, *args, **kwargs):
@@ -30,7 +33,6 @@ class ArticleForm(FlaskForm):
             'content': current_loc.get('FEEDBACK_CONTENT', 'Content'),
             'author': current_loc.get('FEEDBACK_AUTHOR', 'Author'),
             'source': current_loc.get('FEEDBACK_SOURCE', 'Source'),
-            'category': current_loc.get('FEEDBACK_CATEGORY', 'Category'),
             'language': current_loc.get('FEEDBACK_LANGUAGE', 'Language'),
             'source_url': current_loc.get('FEEDBACK_SOURCE_URL', 'Source URL'),
             'image_url': current_loc.get('FEEDBACK_IMAGE_URL', 'Image URL'),
@@ -41,7 +43,6 @@ class ArticleForm(FlaskForm):
         # Update field labels with localized text
         self.title.label.text = self.current_loc['title']
         self.content.label.text = self.current_loc['content']
-        self.category.label.text = self.current_loc['category']
         self.l10n.label.text = self.current_loc['language']
         self.author.label.text = self.current_loc['author']
         self.source.label.text = self.current_loc['source']
@@ -76,10 +77,6 @@ class ArticleForm(FlaskForm):
         DataRequired(message='Content is required'),
         Length(min=20, message='Content must be at least 20 characters')
     ])
-    
-    category = SelectField('Category', choices=[
-        ('Feedback', 'Feedback')
-    ], validators=[DataRequired()])
     
     l10n = SelectField('Language', choices=[], validators=[DataRequired()])
 
@@ -117,9 +114,4 @@ class ArticleForm(FlaskForm):
         """Validate image_url if provided"""
         if field.data and not field.data.startswith(('http://', 'https://')):
             field.data = 'http://' + field.data
-    
-    def validate_email(self, field):
-        """Validate email if provided"""
-        if field.data and not eu.validate_email(field.data):
-            raise ValidationError('Please enter a valid email address')
         

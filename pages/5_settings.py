@@ -72,27 +72,34 @@ def show_front_end():
     with st.form("front_end_form"):
         # Add your settings form fields here
         
+        col1, col2 = st.columns(2)
         # 使用 context 初始化表單
-        timezone = st.selectbox(
-            "Select Timezone",
-            ["UTC", "America/Los_Angeles", "Asia/Taipei"],
-            index=0 if not context.get('timezone') else 
-                ["UTC", "America/Los_Angeles", "Asia/Taipei"].index(context.get('timezone', 'UTC'))
-        )
-        context['timezone'] = timezone
+        with col1:
+            timezone = st.selectbox(
+                "Select Timezone",
+                ["UTC", "America/Los_Angeles", "Asia/Taipei"],
+                index=0 if not context.get('timezone') else 
+                    ["UTC", "America/Los_Angeles", "Asia/Taipei"].index(context.get('timezone', 'UTC'))
+            )
+            default_email = st.text_input("Default Email", 
+                        value=context.get('email_user'))
+            context['timezone'] = timezone
+            context['default_email'] = default_email
         
-        lang_list = dbm.get_article_languages()
-        language = st.selectbox(
-            "Select Language",
-            lang_list,
-            index=0 if not context.get('language') else lang_list.index(context.get('language'))
-        )
-        context['language'] = language
+        with col2:
+            lang_list = dbm.get_article_languages()
+            language = st.selectbox(
+                "Select Language",
+                lang_list,
+                index=0 if not context.get('language') else lang_list.index(context.get('language'))
+            )
+            admin_email = st.text_input("Admin Email", 
+                        value=context.get('admin_email'))
+            context['language'] = language
+            context['admin_email'] = admin_email
+        
         email_notifications = st.checkbox("Enable Email Notifications", value=True)
-        default_email = st.text_input("Default Email", 
-                    value=context.get('default_email'))
         dark_mode = st.checkbox("Enable Dark Mode", value=False)
-        context['default_email'] = default_email
         context['email_notifications'] = email_notifications
         context['dark_mode'] = dark_mode
         

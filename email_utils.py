@@ -8,13 +8,18 @@ from flask import url_for, render_template
 from dotenv import load_dotenv
 import socket
 import logging
+from typing import List
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+import ssl
 
 # Configure logging
 log = logging.getLogger(__name__)
 # Set log level from environment variable or default to WARNING
 log_level = os.getenv('LOGGING', 'WARNING').upper()
 log.setLevel(getattr(logging, log_level, logging.WARNING))
-
+load_dotenv(".env")
+        
 # Email configuration
 class Config:
     # Email server configuration
@@ -31,13 +36,100 @@ class Config:
     MAIL_SUPPRESS_SEND = False  # Actually send emails
     
     # Application configuration
-    APP_NAME = os.getenv('APP_NAME', 'FamilyTrees')
-    BASE_URL = os.getenv('BASE_URL', 'http://localhost:8501')
+    APP_NAME = os.getenv('APP_NAME', 'FamilyTreesOps')
+    BASE_URL = os.getenv('BASE_URL', 'http://localhost:5566')
+
+class EmailPublisher:
+    """
+    Email Publisher class to handle the creation and 
+    sending of email messages with support for both 
+    plain text and HTML formats.
+    """
+    def __init__(self, email_sender: str, email_password: str):
+        """
+        Initialize the EmailPublisher with the sender's email and password.
+        
+        Args:
+            email_sender (str): The sender's email address.
+            email_password (str): The sender's email password.
+        """
+        self.email_sender = email_sender
+        self.email_password = email_password
+        
+    def _create_email(self, subject: str, text: str, html: str, recipients: List[str]) -> MIMEMultipart:
+        """
+        Create an email message with both plain text 
+        and HTML formats
+        
+        Args:
+            subject (str): The subject of the email.
+            text (str): The plain text content of the email.
+            html (str): The HTML content of the email.
+            recipients (List[str]): List of recipient email addresses.
+            
+        Returns:
+            MIMEMultipart: The created email message object.
+        """
+        msg = MIMEMultipart("alternative")
+        msg['From'] = self.email_sender
+        msg['To'] = ", ".join(recipients)
+        msg['Subject'] = subject
+
+        # Add both plain text and HTML parts
+        if text:
+            msg.attach(MIMEText(text, "plain"))
+        if html:
+            msg.attach(MIMEText(html, "html"))
+        
+        return msg
+
+    def publish_email(self, subject: str, text: str, html: str, recipients: List[str]):
+        """
+        Send email to multiple recipients
+        
+        Args:
+            subject (str): The subject of the email.
+            text (str): The plain text content of the email.
+            html (str): The HTML content of the email.
+            recipients (List[str]): List of recipient email addresses.
+            
+        Returns:
+            bool: True if the email was sent successfully, False otherwise.
+        """
+        try:
+            # Create email message object
+            msg = self._create_email(subject, text, html, recipients)
+            
+            # Create secure SSL connection
+            context = ssl.create_default_context()
+            context.load_default_certs()
+            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            
+            # Send email
+            with smtplib.SMTP_SSL(Config.MAIL_SERVER, Config.MAIL_PORT, context=context) as smtp:
+                try:
+                    smtp.login(self.email_sender, self.email_password)
+                    smtp.sendmail(self.email_sender, recipients, msg.as_string())
+                    return True
+                except smtplib.SMTPAuthenticationError as e:
+                    log.error(f'publish_email(): Login failed: {str(e)}')
+                    return False
+                except Exception as e:
+                    log.error(f'publish_email(): Error sending email: {str(e)}')
+                    return False
+        except Exception as e:
+            log.error(f'publish_email(): General error: {str(e)}')
+            return False
 
 def validate_email(email):
     """
     Check if email is legitimate.
-    Return True if passed else False.
+    
+    Args:
+        email (str): The email address to validate.
+        
+    Returns:
+        bool: True if the email is legitimate, False otherwise.
     """
     pattern = r"^[a-zA-Z0-9-_.]+@[a-zA-Z0-9-]+\.[a-z]{2,4}$"
 
@@ -46,7 +138,12 @@ def validate_email(email):
     return False
 
 def generate_verification_token():
-    """Generate a secure random token for email verification"""
+    """
+    Generate a secure random token for email verification
+    
+    Returns:
+        str: A secure random token
+    """
     return secrets.token_urlsafe(32)
 
 def send_verification_email(mail, email, token, is_subscribe=True):
@@ -119,13 +216,57 @@ def send_verification_email(mail, email, token, is_subscribe=True):
         log.error(f"Failed to prepare email: {str(e)}", exc_info=True)
         return False
 
+def send_email(mail, emails, subject, html):
+    """
+    Send email to the specified email address
+    
+    Args:
+        mail: Flask-Mail instance
+        emails (list): Recipient's email addresses
+        subject (str): Email subject
+        html (str): Email content
+    
+    Returns:
+        bool: True if email was sent successfully, False otherwise
+    """
+    log.info(f"Preparing to send email to {emails}")
+    log.debug(f"Email content: {html}")
+    
+    try:
+        # Configure email message
+        msg = Message(
+            subject=subject,
+            recipients=emails,
+            html=html,
+            sender=Config.MAIL_DEFAULT_SENDER
+        )
+        log.debug(f"Prepared email message - From: {Config.MAIL_DEFAULT_SENDER}, To: {emails}")
+        
+        # Log SMTP configuration (without sensitive data)
+        log.debug(f"SMTP Server: {Config.MAIL_SERVER}:{Config.MAIL_PORT}")
+        log.debug(f"Using TLS: {Config.MAIL_USE_TLS}, Using SSL: {Config.MAIL_USE_SSL}")
+        
+        # Send the email using the helper function
+        result = _send_mail(mail, msg)
+            
+        if result:
+            log.debug(f"Email sent successfully to {emails}")
+        else:
+            log.warning(f"Failed to send email to {emails}")
+                
+        return result
+            
+    except Exception as e:
+        log.error(f"Failed to prepare email: {str(e)}", exc_info=True)
+        return False
+    
 def send_newsletter(mail, emails, blob):
     """
     Send newsletter to the specified email addresses
     
     Args:
         mail: Flask-Mail instance
-        email (list): Recipient's email addresses
+        emails (list): Recipient's email addresses
         blob (dict): Blob of data containing email content
     
     Returns:
@@ -279,3 +420,32 @@ def _send_mail(mail, msg, max_retries=3):
                 return False
     
     return False
+
+if __name__ == "__main__":
+    # Initialize EmailPublisher
+    publisher = EmailPublisher(Config.MAIL_USERNAME, 
+                             Config.MAIL_PASSWORD
+                             )
+    
+    # Set email subject and recipients
+    subject = 'Test Email'
+    recipients = ["mkaoy2k@me.com"]
+    text = "This is a test email"
+    html = r"""
+    <style>
+        .publish-message {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1f77b4;
+        }
+    </style>
+    <div class="publish-message">
+    <p>Your article has been approved and published:</p>
+    </div>
+    """
+    # Send email
+    if publisher.publish_email(subject, text, html, recipients):
+        log.info("Email sent successfully")
+    else:
+        log.error("Failed to send email")
+    

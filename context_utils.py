@@ -26,7 +26,8 @@ LANGUAGE = os.getenv("L10N", "US")
 
 # Email Settings
 EMAIL_NOTIFICATIONS = True
-DEFAULT_EMAIL = os.getenv("MAIL_DEFAULT_SENDER", "mkaoy2k@gmail.com")
+MAIL_USER = os.getenv("MAIL_USERNAME", "")
+MAIL_PASS = os.getenv("MAIL_PASSWORD", "")
 
 # UI Settings
 DARK_MODE = False
@@ -62,7 +63,9 @@ def init_context() -> Dict[str, Any]:
         'release': RELEASE,
         'languages': LANGUAGES,
         'language': LANGUAGE,
-        'default_email': DEFAULT_EMAIL,
+        'email_user': MAIL_USER,
+        'email_pass': MAIL_PASS,
+        'admin_email': os.getenv("DB_ADMIN", ""),
         'email_notifications': EMAIL_NOTIFICATIONS,
         'dark_mode': DARK_MODE,
         'items_per_page': ITEMS_PER_PAGE,

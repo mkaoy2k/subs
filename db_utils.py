@@ -46,12 +46,15 @@ db_tables = {
 Subscriber_State = {
     'active': 1, 
     'pending': 0,
-    'inactive': -1
+    'inactive': -1,
+    'in_contact': -2    # for users from contact form
     }
 Article_State = {
-    'approved': 1,
-    'pending': 0,
-    'rejected': -1
+    'action_taken': 2,    # for articles from contact form
+    'approved': 1,        # for articles from article form
+    'pending': 0,         # for articles from both forms
+    'rejected': -1,       # for articles from article form
+    'ignored': -2         # for articles from contact form
     }
 # Values for Article categories
 Article_Categories = {
@@ -69,6 +72,80 @@ def get_db_connection():
     conn = sqlite3.connect(dbn)
     conn.row_factory = sqlite3.Row
     return conn
+
+def add_sub_id_column():
+    """Add sub_id column to article table if it doesn't exist"""
+    with get_db_connection() as conn:
+        # Check if sub_id column exists
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({db_tables['article']})")
+        columns = [column[1] for column in cursor.fetchall()]
+        
+        if 'sub_id' not in columns:
+            try:
+                # Add sub_id column
+                conn.execute(f"ALTER TABLE {db_tables['article']} ADD COLUMN sub_id INTEGER")
+                log.info("Added sub_id column to article table")
+                return True
+            except sqlite3.Error as e:
+                log.error(f"Error adding sub_id column: {e}")
+                return False
+    return False
+
+def rename_sub_id_to_user_id():
+    """Rename sub_id column to user_id in article table if it exists"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Check if sub_id column exists and user_id doesn't exist
+        cursor.execute(f"PRAGMA table_info({db_tables['article']})")
+        columns = {column[1]: column for column in cursor.fetchall()}
+        
+        if 'sub_id' in columns and 'user_id' not in columns:
+            # Rename the column by creating a new table and copying data
+            cursor.executescript(f"""
+                -- Create a new table with the updated schema
+                CREATE TABLE {db_tables['article']}_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    category TEXT NOT NULL DEFAULT {Article_Categories['news']},
+                    author TEXT,
+                    source TEXT,
+                    src_url TEXT,
+                    image_url TEXT,
+                    l10n TEXT,
+                    created_at TEXT DEFAULT (datetime('now')),
+                    updated_at TEXT DEFAULT (datetime('now')),
+                    user_id INTEGER DEFAULT 0,
+                    is_censored INTEGER DEFAULT 0
+                );
+                
+                -- Copy data from old table to new table
+                INSERT INTO {db_tables['article']}_new 
+                (id, title, content, category, author, source, src_url, 
+                 image_url, l10n, created_at, updated_at, user_id, is_censored)
+                SELECT id, title, content, category, author, source, src_url, 
+                       image_url, l10n, created_at, updated_at, sub_id, is_censored
+                FROM {db_tables['article']};
+                
+                -- Drop the old table
+                DROP TABLE {db_tables['article']};
+                
+                -- Rename the new table to the original name
+                ALTER TABLE {db_tables['article']}_new RENAME TO {db_tables['article']};
+            """)
+            conn.commit()
+            logging.info("Renamed sub_id column to user_id in article table")
+            
+    except sqlite3.Error as e:
+        logging.error(f"Error renaming sub_id to user_id: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if conn:
+            conn.close()
 
 def init_db():
     """Initialize the database with required tables"""
@@ -110,6 +187,7 @@ def init_db():
             l10n TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now')),
+            user_id INTEGER DEFAULT 0,
             is_censored INTEGER DEFAULT 0
         )"""
         sql_stmt = f"{cmd} {args}"
@@ -383,6 +461,97 @@ def update_user(user_id, update_fields):
         log.error(f"Unexpected error while updating user ID {user_id}: {str(e)}")
         return False
 
+def create_user(email, state, lang=None):
+    """
+    Create a new user in the database.
+    
+    Args:
+        email (str): User's email address (must be unique)
+        state (int): Account state (use Subscriber_State values)
+        lang (str, optional): User's preferred language code. Defaults to None.
+        
+    Returns:
+        int or None: The ID of the newly created user if successful, None otherwise
+    """
+    if not email or not isinstance(email, str):
+        log.error("Invalid email provided")
+        return None
+        
+    if state not in Subscriber_State.values():
+        log.error(f"Invalid state provided: {state}")
+        return None
+        
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if user with this email already exists
+            cursor.execute(f"""
+                SELECT id FROM {db_tables['user']} 
+                WHERE email = ?
+            """, (email,))
+            
+            if cursor.fetchone() is not None:
+                log.warning(f"User with email {email} already exists")
+                return None
+                
+            # Insert new user
+            cursor.execute(f"""
+                INSERT INTO {db_tables['user']} 
+                (email, is_active, l10n, created_at, updated_at)
+                VALUES (?, ?, ?, datetime('now'), datetime('now'))
+            """, (email, state, lang))
+            
+            user_id = cursor.lastrowid
+            conn.commit()
+            log.info(f"Created new user with ID: {user_id}")
+            return user_id
+            
+    except sqlite3.IntegrityError as e:
+        log.error(f"Integrity error while creating user {email}: {str(e)}")
+        if "UNIQUE constraint failed" in str(e):
+            log.error("Email address already exists")
+        return None
+    except sqlite3.Error as e:
+        log.error(f"Database error while creating user {email}: {str(e)}")
+        return None
+    except Exception as e:
+        log.error(f"Unexpected error while creating user {email}: {str(e)}")
+        return None
+
+def get_user_email(user_id):
+    """
+    Retrieve a user's email by their ID
+    
+    Args:
+        user_id (int): The ID of the user
+        
+    Returns:
+        str: The user's email if found, None otherwise
+    """
+    if not isinstance(user_id, int) or user_id <= 0:
+        log.error(f"Invalid user ID provided: {user_id}")
+        return None
+        
+    with get_db_connection() as conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT email FROM {db_tables['user']} WHERE id = ?",
+                (user_id,)
+            )
+            result = cursor.fetchone()
+            if result:
+                return result[0]
+            log.warning(f"No user found with ID: {user_id}")
+            return None
+            
+        except sqlite3.Error as e:
+            log.error(f"Database error while retrieving email for user ID {user_id}: {str(e)}")
+            return None
+        except Exception as e:
+            log.error(f"Unexpected error while retrieving email for user ID {user_id}: {str(e)}")
+            return None
 
 def delete_user(user_id):
     """
@@ -755,13 +924,14 @@ def get_next_article(article_id, category, is_censored=Article_State['pending'])
         log.error(f"Error fetching article with state {is_censored}: {str(e)}")
         return None
     
-def review_article(article_id, is_censored):
+def review_article(article_id, is_censored, category=None):
     """
     Review an article by its ID
     
     Args:
         article_id (int): The ID of the article to review
         is_censored (int): The state of the article to set/reset
+        category (str): The category of the article to classify
         
     Returns:
         bool: True if review was successful, False otherwise
@@ -778,11 +948,18 @@ def review_article(article_id, is_censored):
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(f"""
-                UPDATE {db_tables['article']}
-                SET is_censored = ?
-                WHERE id = ?
-            """, (is_censored, article_id))
+            if category is None:
+                cursor.execute(f"""
+                        UPDATE {db_tables['article']}
+                        SET is_censored = ?
+                        WHERE id = ?
+                        """, (is_censored, article_id))
+            else:
+                cursor.execute(f"""
+                        UPDATE {db_tables['article']}
+                        SET is_censored = ?, category = ?
+                        WHERE id = ?
+                        """, (is_censored, category, article_id))
             
             if cursor.rowcount > 0:
                 conn.commit()
@@ -796,7 +973,10 @@ def review_article(article_id, is_censored):
         log.error(f"Error setting article state to {is_censored} for article with ID {article_id}: {str(e)}")
         return False
     
-def create_article(title, content, category, author, source, src_url=None, image_url=None, l10n='US'):
+def create_article(title, content, category, 
+                   author, source, 
+                   src_url=None, image_url=None, 
+                   user_id=0, l10n='US'):
     """
     Create a new article in the database
     
@@ -808,6 +988,7 @@ def create_article(title, content, category, author, source, src_url=None, image
         source (str): Source of the article
         src_url (str, optional): URL to the original article
         image_url (str, optional): URL to an image for the article
+        user_id (int, optional): User ID. Defaults to 0.
         l10n (str, optional): Language/locale code. Defaults to 'US'.
         
     Returns:
@@ -823,12 +1004,12 @@ def create_article(title, content, category, author, source, src_url=None, image
             cursor.execute(f"""
                 INSERT INTO {db_tables['article']} (
                     title, content, category, author, 
-                    source, src_url, image_url, l10n,
+                    source, src_url, image_url, sub_id, l10n,
                     created_at, updated_at, is_censored
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 title, content, category, author,
-                source, src_url, image_url, l10n,
+                source, src_url, image_url, sub_id, l10n,
                 datetime.datetime.now(), 
                 datetime.datetime.now(), 
                 Article_State['pending']
@@ -1048,17 +1229,21 @@ def import_users_from_file(file_path, format_type='json'):
                         skipped += 1
                         continue
                         
-                    # Insert new user
+                    # Insert new user with all fields
                     cursor.execute(f"""
                         INSERT INTO {db_tables['user']} 
-                        (email, token, is_active, l10n, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), 
+                        (email, is_active, l10n, token, is_admin, password_hash, salt, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, 
+                        COALESCE(?, CURRENT_TIMESTAMP), 
                         COALESCE(?, CURRENT_TIMESTAMP))
                     """, (
                         user.get('email'),
-                        user.get('token', ''),
                         int(user.get('is_active', 0)),
                         user.get('l10n', 'US'),
+                        user.get('token', ''),
+                        int(user.get('is_admin', 0)),
+                        user.get('password_hash', ''),
+                        user.get('salt', ''),
                         user.get('created_at'),
                         user.get('updated_at')
                     ))
@@ -1078,8 +1263,85 @@ def import_users_from_file(file_path, format_type='json'):
         log.error(f"Error importing users: {str(e)}")
         return success, errors + 1, skipped
     
+def import_articles_from_file(file_path, format_type='json'):
+    success = 0
+    errors = 0
+    skipped = 0
+    
+    if not os.path.exists(file_path):
+        log.error(f"File not found: {file_path}")
+        return 0, 1, 0
+        
+    try:
+        articles = []
+        if format_type.lower() == 'json':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                articles = json.load(f)
+        elif format_type.lower() == 'csv':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                articles = list(csv.DictReader(f))
+        else:
+            log.error(f"Unsupported format: {format_type}. Use 'json' or 'csv'")
+            return 0, 1, 0
+            
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            for article in articles:
+                try:
+                    # Check if article already exists
+                    cursor.execute(
+                        f"SELECT id FROM {db_tables['article']} WHERE title = ?",
+                        (article['title'],)
+                    )
+                    if cursor.fetchone():
+                        log.debug(f"Article {article['title']} already exists, skipping")
+                        skipped += 1
+                        continue
+                        
+                    # Insert new article with all fields
+                    cursor.execute(f"""
+                        INSERT INTO {db_tables['article']} 
+                        (title, content, category, author, source, 
+                         src_url, image_url, l10n, sub_id, is_censored,
+                         created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, 
+                                ?, ?, ?, ?, ?,
+                                COALESCE(?, CURRENT_TIMESTAMP), 
+                                COALESCE(?, CURRENT_TIMESTAMP))
+                    """, (
+                        article.get('title'),
+                        article.get('content', ''),
+                        article.get('category', Article_Categories['news']),
+                        article.get('author'),
+                        article.get('source'),
+                        article.get('src_url'),
+                        article.get('image_url'),
+                        article.get('l10n', 'US'),
+                        int(article.get('sub_id', 0)),
+                        int(article.get('is_censored', 0)),
+                        article.get('created_at'),
+                        article.get('updated_at')
+                    ))
+                    success += 1
+                    log.debug(f"Imported article: {article.get('title')}")
+                    
+                except Exception as e:
+                    errors += 1
+                    log.error(f"Error importing article {article.get('title')}: {str(e)}")
+            
+            conn.commit()
+            
+        log.info(f"Import completed. Success: {success}, Errors: {errors}, Skipped: {skipped}")
+        return success, errors, skipped
+        
+    except Exception as e:
+        log.error(f"Error importing articles: {str(e)}")
+        return success, errors + 1, skipped 
+    
 # Initialize the database when this module is imported
 init_db()
+rename_sub_id_to_user_id()
 
 if __name__ == "__main__":
     # Set up logging
@@ -1113,42 +1375,55 @@ if __name__ == "__main__":
         exit(1)
     
     # Export users
-    json_path = os.path.join(data_dir, 'users_backup.json')
-    csv_path = os.path.join(data_dir, 'users_backup.csv')
+    # json_path = os.path.join(data_dir, 'users_backup.json')
+    # csv_path = os.path.join(data_dir, 'users_backup.csv')
     
-    print(f"\nExporting users to {json_path}")
-    if export_users_to_file(json_path, 'json'):
-        print(f"✓ Successfully exported to {json_path}")
-    else:
-        print(f"✗ Failed to export to {json_path}")
+    # print(f"\nExporting users to {json_path}")
+    # if export_users_to_file(json_path, 'json'):
+    #     print(f"✓ Successfully exported to {json_path}")
+    # else:
+    #     print(f"✗ Failed to export to {json_path}")
     
-    print(f"\nExporting users to {csv_path}")
-    if export_users_to_file(csv_path, 'csv'):
-        print(f"✓ Successfully exported to {csv_path}")
-    else:
-        print(f"✗ Failed to export to {csv_path}")
+    # print(f"\nExporting users to {csv_path}")
+    # if export_users_to_file(csv_path, 'csv'):
+    #     print(f"✓ Successfully exported to {csv_path}")
+    # else:
+    #     print(f"✗ Failed to export to {csv_path}")
         
     # Import users
-    json_path = os.path.join(data_dir, 'users_backup.json')
-    csv_path = os.path.join(data_dir, 'users_backup.csv')
+    # json_path = os.path.join(data_dir, 'users_backup.json')
+    # csv_path = os.path.join(data_dir, 'users_backup.csv')
     
-    print(f"\nImporting users from {json_path}")
-    success, errors, skipped = import_users_from_file(json_path, 'json')
-    print(f"Import from JSON: Success: {success}, Errors: {errors}, Skipped: {skipped}")
-    
-    success, errors, skipped = import_users_from_file(csv_path, 'csv')
-    print(f"Import from CSV: Success: {success}, Errors: {errors}, Skipped: {skipped}")
+    # import users from JSON
+    # print(f"\nImporting users from {json_path}")
+    # success, errors, skipped = import_users_from_file(json_path, 'json')
+    # print(f"Import from JSON: Success: {success}, Errors: {errors}, Skipped: {skipped}")
+   
+    # import users from CSV
+    # print(f"\nImporting users from {csv_path}")
+    # success, errors, skipped = import_users_from_file(csv_path, 'csv')
+    # print(f"Import from CSV: Success: {success}, Errors: {errors}, Skipped: {skipped}")
     
     # export articles to JSON
-    json_path = os.path.join(data_dir, 'articles_backup.json')
-    if export_articles_to_file(json_path, 'json'):
-        print(f"✓ Successfully exported to {json_path}")
-    else:
-        print(f"✗ Failed to export to {json_path}")
+    # json_path = os.path.join(data_dir, 'articles_backup.json')
+    # if export_articles_to_file(json_path, 'json'):
+    #     print(f"✓ Successfully exported to {json_path}")
+    # else:
+    #     print(f"✗ Failed to export to {json_path}")
 
     # export articles to CSV
+    # csv_path = os.path.join(data_dir, 'articles_backup.csv')
+    # if export_articles_to_file(csv_path, 'csv'):
+    #     print(f"✓ Successfully exported to {csv_path}")
+    # else:
+    #     print(f"✗ Failed to export to {csv_path}")
+    
+    # import articles from JSON
+    # json_path = os.path.join(data_dir, 'articles_backup.json')
+    # success, errors, skipped = import_articles_from_file(json_path, 'json')
+    # print(f"Import from JSON: Success: {success}, Errors: {errors}, Skipped: {skipped}")
+    
+    # import articles from CSV
     csv_path = os.path.join(data_dir, 'articles_backup.csv')
-    if export_articles_to_file(csv_path, 'csv'):
-        print(f"✓ Successfully exported to {csv_path}")
-    else:
-        print(f"✗ Failed to export to {csv_path}")
+    success, errors, skipped = import_articles_from_file(csv_path, 'csv')
+    print(f"Import from CSV: Success: {success}, Errors: {errors}, Skipped: {skipped}")

@@ -21,7 +21,7 @@
     }
 </style>
 <div class="content-section">
-    <form method="POST" action="" enctype="multipart/form-data">
+    <form method="POST" action="">
         {{ form.hidden_tag() }}
         <fieldset class="form-group">
             <legend class="border-bottom mb-4 spencerian-header">{{ header }}</legend>
@@ -57,19 +57,15 @@
             
             <div class="form-row">
                 <div class="form-group col-md-6">
-                    {{ form.category.label(class="form-control-label") }}
-                    {{ form.category(class="form-control form-control-lg") }}
-                </div>
-                <div class="form-group col-md-6">
                     {{ form.author.label(class="form-control-label") }}
                     {{ form.author(class="form-control form-control-lg") }}
                 </div>
-            </div>
-            
-            <div class="form-group">
+                <div class="form-group col-md-6">
                 {{ form.l10n.label(class="form-control-label") }}
                 {{ form.l10n(class="form-control form-control-lg") }}
+                </div>
             </div>
+            
             <div class="form-group">
                 {{ form.source.label(class="form-control-label") }}
                 {{ form.source(class="form-control form-control-lg") }}
