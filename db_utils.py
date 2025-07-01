@@ -73,22 +73,22 @@ def get_db_connection():
     conn.row_factory = sqlite3.Row
     return conn
 
-def add_sub_id_column():
-    """Add sub_id column to article table if it doesn't exist"""
+def add_user_id_column():
+    """Add user_id column to article table if it doesn't exist"""
     with get_db_connection() as conn:
-        # Check if sub_id column exists
+        # Check if user_id column exists
         cursor = conn.cursor()
         cursor.execute(f"PRAGMA table_info({db_tables['article']})")
         columns = [column[1] for column in cursor.fetchall()]
         
-        if 'sub_id' not in columns:
+        if 'user_id' not in columns:
             try:
-                # Add sub_id column
-                conn.execute(f"ALTER TABLE {db_tables['article']} ADD COLUMN sub_id INTEGER")
-                log.info("Added sub_id column to article table")
+                # Add user_id column
+                conn.execute(f"ALTER TABLE {db_tables['article']} ADD COLUMN user_id INTEGER")
+                log.info("Added user_id column to article table")
                 return True
             except sqlite3.Error as e:
-                log.error(f"Error adding sub_id column: {e}")
+                log.error(f"Error adding user_id column: {e}")
                 return False
     return False
 
@@ -1004,12 +1004,12 @@ def create_article(title, content, category,
             cursor.execute(f"""
                 INSERT INTO {db_tables['article']} (
                     title, content, category, author, 
-                    source, src_url, image_url, sub_id, l10n,
+                    source, src_url, image_url, user_id, l10n,
                     created_at, updated_at, is_censored
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 title, content, category, author,
-                source, src_url, image_url, sub_id, l10n,
+                source, src_url, image_url, user_id, l10n,
                 datetime.datetime.now(), 
                 datetime.datetime.now(), 
                 Article_State['pending']
@@ -1303,7 +1303,7 @@ def import_articles_from_file(file_path, format_type='json'):
                     cursor.execute(f"""
                         INSERT INTO {db_tables['article']} 
                         (title, content, category, author, source, 
-                         src_url, image_url, l10n, sub_id, is_censored,
+                         src_url, image_url, l10n, user_id, is_censored,
                          created_at, updated_at)
                         VALUES (?, ?, ?, ?, ?, 
                                 ?, ?, ?, ?, ?,
@@ -1318,7 +1318,7 @@ def import_articles_from_file(file_path, format_type='json'):
                         article.get('src_url'),
                         article.get('image_url'),
                         article.get('l10n', 'US'),
-                        int(article.get('sub_id', 0)),
+                        int(article.get('user_id', 0)),
                         int(article.get('is_censored', 0)),
                         article.get('created_at'),
                         article.get('updated_at')

@@ -88,6 +88,8 @@ def show_front_end():
         
         with col2:
             lang_list = dbm.get_article_languages()
+            if not lang_list:
+                lang_list = ["US", "繁中"]
             language = st.selectbox(
                 "Select Language",
                 lang_list,

@@ -433,7 +433,7 @@ def contact():
             src_url='',
             image_url='',
             l10n=context['current_lang'],
-            sub_id=user_id
+            user_id=user_id
         )
             
         if article_id:
@@ -562,7 +562,7 @@ def feedback():
                             source=source,
                             src_url=src_url,
                             image_url=image_url,
-                            sub_id=subscriber['id'],
+                            user_id=subscriber['id'],
                             l10n=l10n
                         )
                         
