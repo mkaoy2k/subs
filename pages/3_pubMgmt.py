@@ -5,7 +5,7 @@ This page provides functionality for managing newsletter publications.
 """
 import streamlit as st
 from email_utils import send_newsletter
-from admin_ui import init_session_state, show_admin_sidebar
+from subs_ui import init_session_state, show_admin_sidebar
 from context_utils import init_context, update_context
 import db_utils as dbm
 
@@ -14,7 +14,7 @@ init_session_state()
 
 # Check authentication
 if not st.session_state.get('authenticated', False):
-    st.switch_page("admin_ui.py")
+    st.switch_page("subs_ui.py")
     
 # Show admin sidebar
 show_admin_sidebar()
@@ -68,7 +68,7 @@ st.subheader("Quick Navigation")
 col1, col2 = st.columns(2)
 with col1:
     if st.button("← Back to Admin DBM"):
-        st.switch_page("admin_ui.py")
+        st.switch_page("subs_ui.py")
         
 with col2:
     if st.button("View Subscribers"):

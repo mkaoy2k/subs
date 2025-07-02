@@ -22,7 +22,7 @@ def show_login_page():
     st.empty()
     
     # Set page title and header
-    st.title("Database Management")
+    st.title(f"{os.getenv('APP_NAME', '')} {os.getenv('RELEASE', '')}")
     st.markdown("---")
     
     # Center the login form
@@ -146,7 +146,7 @@ def show_admin_sidebar():
 def show_main_content():
     """Display the main content area"""
     
-    st.title("Admin DBM")
+    st.title("Admin Page")
     
     # Show database tables
     st.subheader("Database Tables")
@@ -287,7 +287,7 @@ def main():
     """Main application entry point"""
     # Set page config
     st.set_page_config(
-        page_title="Admin DBM " + os.getenv("RELEASE", ""),
+        page_title="Admin " + os.getenv("RELEASE", ""),
         page_icon="🔒",
         layout="wide",
         initial_sidebar_state="expanded"

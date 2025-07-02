@@ -100,7 +100,7 @@ python ops_svr.py
 ### Start Admin Interface (For Editors)
 
 ```bash
-streamlit run admin_ui.py
+streamlit run subs_ui.py
 ```
 
 ## ⚙️ Environment Variables

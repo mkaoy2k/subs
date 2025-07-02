@@ -8,7 +8,7 @@ import pandas as pd
 import subprocess
 import sys
 import os
-from admin_ui import show_admin_sidebar, init_session_state
+from subs_ui import show_admin_sidebar, init_session_state
 import db_utils as dbm
 import email_utils as eu
 from context_utils import init_context
@@ -111,7 +111,7 @@ init_session_state()
 
 # Check authentication
 if not st.session_state.get('authenticated', False):
-    st.switch_page("admin_ui.py")
+    st.switch_page("subs_ui.py")
     
 # Show admin sidebar
 with st.sidebar:

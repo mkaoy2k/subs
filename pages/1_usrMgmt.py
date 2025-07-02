@@ -9,7 +9,7 @@ This page provides user management functionality including:
 import streamlit as st
 import pandas as pd
 import db_utils as dbm
-from admin_ui import show_admin_sidebar, init_session_state
+from subs_ui import show_admin_sidebar, init_session_state
 from context_utils import init_context, update_context
 
 def format_timestamps(df):
@@ -274,7 +274,7 @@ def main():
     
     # Check authentication
     if not st.session_state.get('authenticated', False):
-        st.switch_page("admin_ui.py")
+        st.switch_page("subs_ui.py")
     else:
         show_page()
         show_update_page()

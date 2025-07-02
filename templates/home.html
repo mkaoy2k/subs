@@ -75,25 +75,7 @@
         {{ t4_greeting }},<br>
         {{ t4_team }}
     </div>
-    <div style="font-size: 0.85em; margin-top: 1rem;">
-        &copy; <span id="current-year"></span> {{ t4_team }}. All Rights Reserved.<br>
-        The content, organization, graphics, design, and other matters related to this site are protected under applicable copyrights,
-        trademarks, and other proprietary (including but not limited to intellectual property) rights.
-        Unauthorized use, reproduction, or distribution of any content from this site is strictly prohibited.
-    </div>
-    <div style="margin-top: 0.5rem; font-size: 0.8em; color: #999;">
-        <a href="/privacy" style="color: #666; text-decoration: none;">Privacy Policy</a> | 
-        <a href="/terms" style="color: #666; text-decoration: none; margin: 0 10px;">Terms of Service</a> |
-        <a href="/contact" style="color: #666; text-decoration: none;">Contact Us</a>
-    </div>
 </div>
 {% endblock %}
 
-{% block scripts %}
-<script>
-    // Set current year in footer
-    document.addEventListener('DOMContentLoaded', function() {
-        document.getElementById('current-year').textContent = new Date().getFullYear();
-    });
-</script>
-{% endblock %}
+

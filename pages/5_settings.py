@@ -4,7 +4,7 @@ Settings Page
 This module provides the settings page for the admin interface.
 """
 import streamlit as st
-from admin_ui import init_session_state, show_admin_sidebar
+from subs_ui import init_session_state, show_admin_sidebar
 from context_utils import init_context, update_context
 import db_utils as dbm
 import os
@@ -64,7 +64,7 @@ init_session_state()
 
 # Check authentication
 if not st.session_state.get('authenticated', False):
-    st.switch_page("admin_ui.py")
+    st.switch_page("subs_ui.py")
 
 def show_front_end():
     st.subheader("Front-end Settings")
@@ -177,14 +177,14 @@ def show_back_end():
 # Show the page if authenticated
 # Check authentication
 if not st.session_state.get('authenticated', False):
-    st.switch_page("admin_ui.py")
+    st.switch_page("subs_ui.py")
     
 # Show admin sidebar
 show_admin_sidebar()
 
 # Main content
 st.title("Settings")
-# 獲取當前 context
+# initialize context
 context = st.session_state.get('app_context', init_context())
 show_front_end()
 st.markdown("---")
