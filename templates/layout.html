@@ -9,7 +9,64 @@
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css" integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
 
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='main.css') }}">
-
+    <style>
+        h3 {
+            color: #2c3e50;
+            text-align: center;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h4 {
+            color: #2980b9;
+            border-left: 4px solid #3498db;
+            padding-left: 10px;
+        }
+        .author {
+            text-align: right;
+            color: #7f8c8d;
+            font-style: italic;
+            margin-bottom: 30px;
+        }
+        .road-name {
+            background-color: #e8f4fc;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            border-left: 4px solid #3498db;
+        }
+        .meaning {
+            margin-left: 20px;
+            color: #2c3e50;
+        }
+        .source {
+            color: #7f8c8d;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        .quote {
+            font-style: italic;
+            color: #16a085;
+            margin: 10px 0 10px 20px;
+            padding-left: 10px;
+            border-left: 2px solid #1abc9c;
+        }
+        .conclusion {
+            font-weight: bold;
+            text-align: center;
+            margin: 30px 0;
+            font-size: 1.2em;
+            color: #e74c3c;
+        }
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+                font-size: 0.95em;
+            }
+            h3 {
+                font-size: 1.5em;
+            }
+        }
+    </style>
     <!-- FamilyTreesOps 1.0 NOTE: version noted below-->
     {% if title %}
         <title>FamilyTreesOps {{ release }} - {{ title }}</title>

@@ -269,16 +269,20 @@ def home():
         't2_source': ''
     }
     
-    if g_home["Story"] and len(g_home["Story"]) > 0:
-        story_data = {
-            't2_title': g_home["Story"][0].get('title', g_loc['HOME_HTML_NO_STORY_TITLE']),
-            't2_content': g_home["Story"][0].get('content', g_loc['HOME_HTML_NO_STORY_CONTENT']),
-            't2_image': g_home["Story"][0].get('image_url', ''),
-            't2_image_alt': g_home["Story"][0].get('image_alt', ''),
-            't2_author': g_home["Story"][0].get('author', ''),
-            't2_src_url': g_home["Story"][0].get('src_url', ''),
-            't2_source': g_home["Story"][0].get('source', '')
-        }
+    try:
+        if g_home["Story"] and len(g_home["Story"]) > 0:
+            story_data = {
+                't2_title': g_home["Story"][0].get('title', g_loc['HOME_HTML_NO_STORY_TITLE']),
+                't2_content': g_home["Story"][0].get('content', g_loc['HOME_HTML_NO_STORY_CONTENT']),
+                't2_image': g_home["Story"][0].get('image_url', ''),
+                't2_image_alt': g_home["Story"][0].get('image_alt', ''),
+                't2_author': g_home["Story"][0].get('author', ''),
+                't2_src_url': g_home["Story"][0].get('src_url', ''),
+                't2_source': g_home["Story"][0].get('source', '')
+            }
+    
+    except Exception as e:
+        log.warning(f"Skip processing story: {str(e)}")
     
     context.update({
         'release': os.getenv("RELEASE", ""),
