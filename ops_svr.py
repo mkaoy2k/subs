@@ -796,39 +796,79 @@ def pub_newsletter():
     t2 = g_loc['HOME_HTML_T2']
     t3 = g_loc['HOME_HTML_T3']
     
-    context.update({
-        'header': g_loc['HOME_HTML_H1'],
-        'author_label': g_loc['HTML_AUTHOR_LABEL'],
-        'source_label': g_loc['HTML_SOURCE_LABEL'],
-        't1': t1,
-        't1_articles': g_home["News"],
-        't2': t2,
-        't2_title': g_home["Story"][0]['title'],
-        't2_content': g_home["Story"][0]['content'],
-        't2_image': g_home["Story"][0].get('image_url', ''),
-        't2_image_alt': g_home["Story"][0].get('image_alt', ''),
-        't2_author': g_home["Story"][0].get('author', ''),
-        't2_source': g_home["Story"][0].get('source', ''),
-        't2_src_url': g_home["Story"][0].get('src_url', ''),
-        't3': t3,
-        't3_articles': g_home["Events"],
-        't4_greeting': g_loc['HOME_HTML_T4_GREETING'],
-        't4_team': g_loc['HOME_HTML_T4_TEAM'],
-        'ft_url': ft_svr,
-        'ops_svr': os.getenv("OPS_SVR", "http://localhost:5566"),
-        'title': g_loc['HOME_HTML_H1']
+    # Prepare story data with safe defaults
+    story_data = {
+        't2_title': g_loc.get('HOME_HTML_NO_STORY_TITLE', 'Featured Story'),
+        't2_content': g_loc.get('HOME_HTML_NO_STORY_CONTENT', 'No story content available'),
+        't2_image': '',
+        't2_image_alt': '',
+        't2_author': '',
+        't2_source': '',
+        't2_src_url': ''
+    }
+    
+    # Update story data if available
+    if 'Story' in g_home and isinstance(g_home['Story'], list) and len(g_home['Story']) > 0:
+        story = g_home['Story'][0]
+        story_data.update({
+            't2_title': story.get('title', story_data['t2_title']),
+            't2_content': story.get('content', story_data['t2_content']),
+            't2_image': story.get('image_url', ''),
+            't2_image_alt': story.get('image_alt', ''),
+            't2_author': story.get('author', ''),
+            't2_source': story.get('source', ''),
+            't2_src_url': story.get('src_url', '')
         })
     
+    # Prepare context with safe dictionary access
+    context.update({
+        'header': g_loc.get('HOME_HTML_H1', 'Newsletter'),
+        'author_label': g_loc.get('HTML_AUTHOR_LABEL', 'Author'),
+        'source_label': g_loc.get('HTML_SOURCE_LABEL', 'Source'),
+        't1': t1,
+        't1_articles': g_home.get('News', []),  # Default to empty list if 'News' key doesn't exist
+        't2': t2,
+        't2_title': story_data['t2_title'],
+        't2_content': story_data['t2_content'],
+        't2_image': story_data['t2_image'],
+        't2_image_alt': story_data['t2_image_alt'],
+        't2_author': story_data['t2_author'],
+        't2_source': story_data['t2_source'],
+        't2_src_url': story_data['t2_src_url'],
+        't3': t3,
+        't3_articles': g_home.get('Events', []),  # Default to empty list if 'Events' key doesn't exist
+        't4_greeting': g_loc.get('HOME_HTML_T4_GREETING', 'Thank you for subscribing!'),
+        't4_team': g_loc.get('HOME_HTML_T4_TEAM', 'The Team'),
+        'ft_url': ft_svr,
+        'ops_svr': os.getenv("OPS_SVR", "http://localhost:5566"),
+        'title': g_loc.get('HOME_HTML_H1', 'Newsletter')
+    })
+    
     try:
-        if send_newsletter(mail, emails, context):
-            log.debug(f"Newsletter sent successfully for language: {lang}")
-            flash(f'{g_loc.get("PUB_HTML_SUCCESS", "Newsletter sent successfully.")}', 'success')
+        log.info(f"Attempting to send newsletter to {len(emails)} recipients in language: {lang}")
+        log.debug(f"Context keys: {list(context.keys())}")
+        
+        # Log important context data for debugging
+        if 't1_articles' in context:
+            log.debug(f"Found {len(context['t1_articles'])} news articles")
+        if 't3_articles' in context:
+            log.debug(f"Found {len(context['t3_articles'])} event articles")
+            
+        # Send the newsletter
+        if eu.send_newsletter(g_fmail, emails, context):
+            success_msg = f"Newsletter sent successfully to {len(emails)} recipients in language: {lang}"
+            log.info(success_msg)
+            flash(g_loc.get("PUB_HTML_SUCCESS", "Newsletter sent successfully."), 'success')
         else:
-            log.debug(f"Newsletter sent failed for language: {lang}")
-            flash(f'{g_loc.get("PUB_HTML_FAIL", "Newsletter sent failed, please try later")}', 'danger')
+            error_msg = f"Failed to send newsletter for language: {lang}. Check logs for details."
+            log.error(error_msg)
+            flash(g_loc.get("PUB_HTML_FAIL", "Failed to send newsletter. Please try again later."), 'danger')
+            
     except Exception as e:
-        log.debug(f"Newsletter sent failed for language: {lang}")
-        flash(f'{g_loc.get("PUB_HTML_FAIL", "Newsletter sent failed.")}', 'danger')
+        error_msg = f"Unexpected error while sending newsletter for language {lang}: {str(e)}"
+        log.error(error_msg, exc_info=True)
+        flash(g_loc.get("PUB_HTML_FAIL", "An unexpected error occurred. Please contact support."), 'danger')
+        
     return redirect(url_for('home'))    
 
 def main():

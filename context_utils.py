@@ -38,7 +38,8 @@ PASSWORD_RESET_TIMEOUT = 24  # hours
 MAX_LOGIN_ATTEMPTS = 5
 
 # Server Settings
-OPS_SVR=os.getenv("OPS_SVR", "http://localhost:5555")
+OPS_SVR=os.getenv("OPS_SVR", "http://localhost")
+OPS_PORT=os.getenv("OPS_PORT", "5566")
 
 # File System Settings
 FILE_SYSTEM_SETTINGS = {
@@ -71,7 +72,7 @@ def init_context() -> Dict[str, Any]:
         'items_per_page': ITEMS_PER_PAGE,
         'password_reset_timeout': PASSWORD_RESET_TIMEOUT,
         'max_login_attempts': MAX_LOGIN_ATTEMPTS,
-        'ops_svr': OPS_SVR,
+        'ops_svr': OPS_SVR + ":" + OPS_PORT,
         'fss': FILE_SYSTEM_SETTINGS
     }
     

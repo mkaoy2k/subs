@@ -4,7 +4,7 @@ Publication Management
 This page provides functionality for managing newsletter publications.
 """
 import streamlit as st
-from email_utils import send_newsletter
+import email_utils as eu
 from subs_ui import init_session_state, show_admin_sidebar
 from context_utils import init_context, update_context
 import db_utils as dbm

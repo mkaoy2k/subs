@@ -1184,22 +1184,22 @@ def export_articles_to_file(file_path, format_type='json'):
 
 def import_users_from_file(file_path, format_type='json'):
     """
-    Import users from a JSON or CSV file into the database.
-    Skips users that already exist (based on email).
+    從 JSON 或 CSV 檔案匯入使用者到資料庫。
+    如果使用者已存在（根據電子郵件），則更新該使用者的資料。
     
     Args:
-        file_path (str): Path to the import file
-        format_type (str): Input format - 'json' or 'csv'
+        file_path (str): 匯入檔案的路徑
+        format_type (str): 輸入格式 - 'json' 或 'csv'
         
     Returns:
-        tuple: (success_count, error_count, skipped_count)
+        tuple: (成功數量, 錯誤數量, 跳過數量)
     """
     success = 0
     errors = 0
     skipped = 0
     
     if not os.path.exists(file_path):
-        log.error(f"File not found: {file_path}")
+        log.error(f"找不到檔案: {file_path}")
         return 0, 1, 0
         
     try:
@@ -1211,7 +1211,7 @@ def import_users_from_file(file_path, format_type='json'):
             with open(file_path, 'r', encoding='utf-8') as f:
                 users = list(csv.DictReader(f))
         else:
-            log.error(f"Unsupported format: {format_type}. Use 'json' or 'csv'")
+            log.error(f"不支援的格式: {format_type}。請使用 'json' 或 'csv'")
             return 0, 1, 0
             
         with get_db_connection() as conn:
@@ -1219,49 +1219,77 @@ def import_users_from_file(file_path, format_type='json'):
             
             for user in users:
                 try:
-                    # Check if user already exists
-                    cursor.execute(
-                        f"SELECT id FROM {db_tables['user']} WHERE email = ?",
-                        (user['email'],)
-                    )
-                    if cursor.fetchone():
-                        log.debug(f"User {user['email']} already exists, skipping")
+                    email = user.get('email')
+                    if not email:
+                        log.warning("跳過缺少電子郵件的使用者記錄")
                         skipped += 1
                         continue
                         
-                    # Insert new user with all fields
-                    cursor.execute(f"""
-                        INSERT INTO {db_tables['user']} 
-                        (email, is_active, l10n, token, is_admin, password_hash, salt, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, 
-                        COALESCE(?, CURRENT_TIMESTAMP), 
-                        COALESCE(?, CURRENT_TIMESTAMP))
-                    """, (
-                        user.get('email'),
-                        int(user.get('is_active', 0)),
-                        user.get('l10n', 'US'),
-                        user.get('token', ''),
-                        int(user.get('is_admin', 0)),
-                        user.get('password_hash', ''),
-                        user.get('salt', ''),
-                        user.get('created_at'),
-                        user.get('updated_at')
-                    ))
+                    # 檢查使用者是否已存在
+                    cursor.execute(
+                        f"SELECT id FROM {db_tables['user']} WHERE email = ?",
+                        (email,)
+                    )
+                    existing_user = cursor.fetchone()
+                    
+                    if existing_user:
+                        # 更新已存在的使用者
+                        user_id = existing_user[0]
+                        cursor.execute(f"""
+                            UPDATE {db_tables['user']} 
+                            SET is_active = ?,
+                                l10n = ?,
+                                token = ?,
+                                is_admin = ?,
+                                password_hash = ?,
+                                salt = ?,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (
+                            int(user.get('is_active', 0)),
+                            user.get('l10n', 'US'),
+                            user.get('token', ''),
+                            int(user.get('is_admin', 0)),
+                            user.get('password_hash', ''),
+                            user.get('salt', ''),
+                            user_id
+                        ))
+                        log.debug(f"已更新使用者: {email}")
+                    else:
+                        # 插入新使用者
+                        cursor.execute(f"""
+                            INSERT INTO {db_tables['user']} 
+                            (email, is_active, l10n, token, is_admin, password_hash, salt, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, 
+                            COALESCE(?, CURRENT_TIMESTAMP), 
+                            COALESCE(?, CURRENT_TIMESTAMP))
+                        """, (
+                            email,
+                            int(user.get('is_active', 0)),
+                            user.get('l10n', 'US'),
+                            user.get('token', ''),
+                            int(user.get('is_admin', 0)),
+                            user.get('password_hash', ''),
+                            user.get('salt', ''),
+                            user.get('created_at'),
+                            user.get('updated_at')
+                        ))
+                        log.debug(f"已匯入新使用者: {email}")
+                    
                     success += 1
-                    log.debug(f"Imported user: {user.get('email')}")
                     
                 except Exception as e:
                     errors += 1
-                    log.error(f"Error importing user {user.get('email')}: {str(e)}")
+                    log.error(f"匯入使用者 {user.get('email', '未知')} 時發生錯誤: {str(e)}")
             
             conn.commit()
             
-        log.info(f"Import completed. Success: {success}, Errors: {errors}, Skipped: {skipped}")
+        log.info(f"匯入完成。成功: {success}, 錯誤: {errors}, 跳過: {skipped}")
         return success, errors, skipped
         
     except Exception as e:
-        log.error(f"Error importing users: {str(e)}")
-        return success, errors + 1, skipped
+        log.error(f"匯入使用者時發生錯誤: {str(e)}")
+        return 0, 1, 0
     
 def import_articles_from_file(file_path, format_type='json'):
     success = 0

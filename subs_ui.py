@@ -8,6 +8,7 @@ import streamlit as st
 import sqlite3
 import db_utils as dbm
 import auth_utils
+import pandas as pd
 import os
 from dotenv import load_dotenv
 load_dotenv()
@@ -91,6 +92,12 @@ def show_admin_sidebar():
                         else:
                             st.error(message)
             
+        # Logout button at the bottom
+        if st.sidebar.button("Logout", type="primary", use_container_width=True):
+            st.session_state.authenticated = False
+            st.session_state.user_email = None
+            st.rerun()
+
         # Display current admin users
         st.subheader("Current Admin Users")
         try:
@@ -128,21 +135,19 @@ def show_admin_sidebar():
                             "Created": format_timestamp(created), 
                             "Last Updated": format_timestamp(updated)
                         })
-                    
-                    st.table(admin_list)
+                    # Convert to DataFrame to handle index properly
+                    df = pd.DataFrame(admin_list)
+                    st.dataframe(
+                        df,
+                        use_container_width=False,
+                        hide_index=True  # Explicitly hide the index
+                    )  
                 else:
-                    st.info("No admin users found")
-                
+                    st.info(f"No admin users found")
+            
         except sqlite3.Error as e:
             st.error(f"Error fetching admin users: {e}")
     
-        # Logout button at the bottom
-        st.sidebar.markdown("---")
-        if st.sidebar.button("Logout", type="primary", use_container_width=True):
-            st.session_state.authenticated = False
-            st.session_state.user_email = None
-            st.rerun()
-
 def show_main_content():
     """Display the main content area"""
     
