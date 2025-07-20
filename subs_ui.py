@@ -292,7 +292,7 @@ def main():
     """Main application entry point"""
     # Set page config
     st.set_page_config(
-        page_title="Admin " + os.getenv("RELEASE", ""),
+        page_title="Subs_UI " + os.getenv("RELEASE", ""),
         page_icon="🔒",
         layout="wide",
         initial_sidebar_state="expanded"
