@@ -78,8 +78,8 @@ def create_admin_user(email, password):
                 # Update existing user to be admin
                 user_id = existing_user[0]
                 password_hash, salt = hash_password(password)
-                cursor.execute("""
-                    UPDATE user 
+                cursor.execute(f"""
+                    UPDATE {dbm.db_tables['user']} 
                     SET password_hash = ?, 
                         salt = ?, 
                         is_admin = 1, 
@@ -92,8 +92,8 @@ def create_admin_user(email, password):
             else:
                 # Create new admin user
                 password_hash, salt = hash_password(password)
-                cursor.execute("""
-                    INSERT INTO user (
+                cursor.execute(f"""
+                    INSERT INTO {dbm.db_tables['user']} (
                         email, 
                         password_hash, 
                         salt, 
@@ -102,10 +102,12 @@ def create_admin_user(email, password):
                         created_at,
                         updated_at
                     ) VALUES (?, ?, ?, 1, 1, 
-                        datetime('now'), 
-                        datetime('now')
+                        strftime('%%Y-%%m-%%d %%H:%%M:%%f', 'now', 'localtime'), 
+                        strftime('%%Y-%%m-%%d %%H:%%M:%%f', 'now', 'localtime')
                     )
-                """, (email, password_hash, salt))
+                """, 
+                (email, password_hash, salt)
+                )
                 conn.commit()
                 return True, "Admin user created successfully"
                 

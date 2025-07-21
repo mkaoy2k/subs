@@ -152,14 +152,14 @@ with st.container():
     try:
         # --- Query articles --- from here
         st.subheader("Query Articles")
-        cats = dbm.get_article_categories()
+        cats = list(dbm.Article_Categories.keys())
         if not cats:
             st.warning("No categories found. Please add categories first.")
             st.stop()
             
         # Find index of 'news' category, default to 0 if not found
-        news_index = cats.index(dbm.Article_Categories['news']) if dbm.Article_Categories['news'] in cats else 0
-        cat = st.selectbox(
+        news_index = list(dbm.Article_Categories.keys()).index('news') if 'news' in dbm.Article_Categories else 0
+        cat_key = st.selectbox(
             "Category:",
             options=cats,
             index=news_index
@@ -169,25 +169,25 @@ with st.container():
         with col1:
             # Add numeric input box for article limit
             limit = st.number_input(
-                "Number of CENSORED articles to fetch:",
+                "Number of approved articles to fetch:",
                 min_value=1,
                 max_value=10,
                 value=10,
                 step=1,
                 format="%d",
-                help="Enter the number of censored articles you want to retrieve (1-10)"
+                help="Enter the number of approved articles you want to retrieve (1-10)"
             )
             
         with col2:
             # Query articles by last number of days
             by_days = st.number_input(
-                "CENSORED articles that are older than number of days from today:",
+                "Approved articles that are older than number of days from today:",
                 min_value=1,
                 max_value=365,
                 value=7,
                 step=1,
                 format="%d",
-                help="Enter the number of days by which you want to query censored articles"
+                help="Enter the number of days by which you want to query approved articles"
             )
         
         # Initialize articles variable
@@ -198,11 +198,11 @@ with st.container():
         
         with btn11:
             if st.button("Query by limit"):
-                articles = dbm.get_articles(cat, limit=limit)
+                articles = dbm.get_articles(dbm.Article_Categories[cat_key], limit=limit)
                 
         with btn12:
             if st.button("Query by days"):
-                articles = dbm.get_articles_byDays(cat, by_days=by_days)
+                articles = dbm.get_articles_byDays(dbm.Article_Categories[cat_key], byDays=by_days)
                 
         info1, info2 = st.columns([15,1])
         # Display results if articles were found
@@ -246,7 +246,7 @@ with st.container():
         with btn22:
             if st.button("Query Next Feedback by State"):
                 result = dbm.get_next_article(
-                    cursor_id, dbm.Article_Categories['feedback'], 
+                    cursor_id, dbm.Article_Categories[cat_key], 
                     is_censored=dbm.Article_State[article_state]
                     )
                 if result is not None:
@@ -270,22 +270,22 @@ with st.container():
         st.subheader("Review Pending Feedback")
         info3, info4 = st.columns([15,1])
         result = dbm.get_next_article(1, 
-                        dbm.Article_Categories['feedback'], 
+                        dbm.Article_Categories[cat_key], 
                         is_censored=dbm.Article_State['pending'])
         if result is None:
             st.info("No more articles to review")
         else:
             review_id, article = result
-            article['category'] = cat
+            article['category'] = cat_key
             display_article(article, info3)
         
             btn31, btn32 = st.columns([5, 5])
 
             with btn31:
-                if st.button(f"Approved ID: {review_id} in category: {cat}"):
+                if st.button(f"Approved ID: {review_id} in category: {dbm.Article_Categories[cat_key]}"):
                     if dbm.review_article(review_id, 
                             dbm.Article_State['approved'],
-                            category=cat):
+                            category=cat_key):
                         # Send approval notification email to subscriber
                         subject = f"Ticket {review_id} Approved"
                         html = r"""
@@ -299,7 +299,7 @@ with st.container():
                         <div class="publish-message">
                         <p>Your article has been approved and published:</p>
                         <p><strong>Title:</strong> {article.get('title', '')}</p>
-                        <p><strong>Category:</strong> {cat}</p>
+                        <p><strong>Category:</strong> {dbm.Article_Categories[cat_key]}</p>
                         <p><strong>Article ID:</strong> {review_id}</p>
                         <p>Thank you for your contribution!</p>
                         </div>

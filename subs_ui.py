@@ -104,7 +104,7 @@ def show_admin_sidebar():
             with dbm.get_db_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                        SELECT email, created_at, updated_at 
+                        SELECT id, email, created_at, updated_at 
                         FROM user 
                         WHERE is_admin = 1
                         ORDER BY email
@@ -113,7 +113,7 @@ def show_admin_sidebar():
                 
                 if admins:
                     admin_list = []
-                    for email, created, updated in admins:
+                    for id, email, created, updated in admins:
                         # Format timestamps for display
                         def format_timestamp(ts):
                             if not ts:
@@ -131,6 +131,7 @@ def show_admin_sidebar():
                                 return str(ts)
                         
                         admin_list.append({
+                            "ID": id,
                             "Email": email, 
                             "Created": format_timestamp(created), 
                             "Last Updated": format_timestamp(updated)

@@ -25,7 +25,7 @@ LANGUAGES = language_list
 LANGUAGE = os.getenv("L10N", "US")
 
 # Email Settings
-EMAIL_NOTIFICATIONS = True
+EMAIL_SUBSCRIPTION = True
 MAIL_USER = os.getenv("MAIL_USERNAME", "")
 MAIL_PASS = os.getenv("MAIL_PASSWORD", "")
 
@@ -67,7 +67,7 @@ def init_context() -> Dict[str, Any]:
         'email_user': MAIL_USER,
         'email_pass': MAIL_PASS,
         'admin_email': os.getenv("DB_ADMIN", ""),
-        'email_notifications': EMAIL_NOTIFICATIONS,
+        'email_subscription': EMAIL_SUBSCRIPTION,
         'dark_mode': DARK_MODE,
         'items_per_page': ITEMS_PER_PAGE,
         'password_reset_timeout': PASSWORD_RESET_TIMEOUT,
@@ -84,7 +84,19 @@ def update_context(new_values: dict):
         st.session_state.app_context = init_context()
     st.session_state.app_context.update(new_values)
     
+# Helper function to get full file path with extension
+def get_file_path():
+    """Generate full file path with correct extension based on selected file type."""
+    context = st.session_state.get('app_context', init_context())
+    extension = context.get('fss', {}).get('file_type', '').lower()
+    dir_path = context.get('fss', {}).get('dir_path', '')
+    file_name = context.get('fss', {}).get('file_name', '')
+    if not file_name or not extension:
+        return "No file path configured"
+    return f"{os.path.join(dir_path, file_name)}.{extension}"
+    
 # 範例使用
 if __name__ == "__main__":
     update_context({'timezone': 'Asia/Taipei'})
     print("Current context:", st.session_state.app_context)
+    print("File path:", get_file_path())

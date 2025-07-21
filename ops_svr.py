@@ -428,17 +428,19 @@ def contact():
         else:
             user_id = user['id']
         # Save the form data to database
-        article_id = dbm.create_article(
-            title=form_data['subject'],
-            content=form_data['message'],
-            category=dbm.Article_Categories['contact'],
-            author=form_data['name'],
-            source=form_data['email'],
-            src_url='',
-            image_url='',
-            l10n=context['current_lang'],
-            user_id=user_id
-        )
+        article_data = {
+            'title': form_data['subject'],
+            'content': form_data['message'],
+            'category': dbm.Article_Categories['contact'],
+            'author': form_data['name'],
+            'source': form_data['email'],
+            'src_url': '',
+            'image_url': '',
+            'l10n': context['current_lang'],
+            'user_id': user_id
+        }
+        article_id = dbm.add_or_update_article(article_data, 
+                                        update=True)
             
         if article_id:
             log.info(f"Created contact form article successfully withID: {article_id}")
@@ -546,7 +548,13 @@ def feedback():
                 subscriber = dbm.get_subscriber(email)
                 if not subscriber:
                     log.info(f"New subscriber detected: {email}, adding to pending")
-                    if not dbm.add_subscriber(email, 'pending_verification', lang=lang):
+                    user_data = {
+                        'email': email,
+                        'is_active': dbm.Subscriber_State['pending'],
+                        'token': 'pending_verification',
+                        'l10n': lang
+                    }
+                    if not dbm.add_or_update_subscriber(user_data):
                         log.error(f"Failed to add new subscriber: {email}")
                         flash(f'{g_loc.get("ADD_SUB_ERROR", "Subscriber not created/updated. Please try again later.")}', 'danger')
                     else:
@@ -558,17 +566,20 @@ def feedback():
                     # Only proceed with article creation if all validations pass
                     try:
                         # Create the article in the database
-                        article_id = dbm.create_article(
-                            title=title,
-                            content=content,
-                            category=dbm.Article_Categories['feedback'],
-                            author=author,
-                            source=source,
-                            src_url=src_url,
-                            image_url=image_url,
-                            user_id=subscriber['id'],
-                            l10n=l10n
-                        )
+                        article_data = {
+                            'title': title,
+                            'content': content,
+                            'category': dbm.Article_Categories['feedback'],
+                            'author': author,
+                            'source': source,
+                            'src_url': src_url,
+                            'image_url': image_url,
+                            'user_id': subscriber['id'],
+                            'l10n': l10n
+                        }
+                        
+                        article_id = dbm.add_or_update_article(article_data, 
+                                        update=True)
                         
                         if article_id:
                             log.debug(f"Successfully created article with ID: {article_id}")
@@ -696,7 +707,13 @@ def subscribe():
             token = generate_verification_token()
             # Send verification email
             if eu.send_verification_email(g_fmail, email, token, is_subscribe=True):
-                if dbm.add_subscriber(email, token, lang=g_loc_key):
+                user_data = {
+                    'email': email,
+                    'is_active': dbm.Subscriber_State['pending'],
+                    'token': token,
+                    'l10n': g_loc_key
+                }
+                if dbm.add_or_update_subscriber(user_data):
                     log.debug(f"Subscribed {email} with lang={g_loc_key}")
                     flash(f'Please check {email} to confirm subscription.', 'info')
                 else:
@@ -742,7 +759,13 @@ def verify_email():
     
     # Handle subscription/unsubscription
     if action == 'subscribe':
-        if dbm.add_subscriber(email, token):
+        user_data = {
+            'email': email,
+            'is_active': dbm.Subscriber_State['active'],
+            'token': token,
+            'l10n': g_loc_key
+        }
+        if dbm.add_or_update_subscriber(user_data):
             log.debug(f"Subscribed {email} with lang={g_loc_key}")
             flash(f'{email} has been successfully subscribed to our newsletter!', 'success')
         else:

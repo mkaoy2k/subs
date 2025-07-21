@@ -15,10 +15,12 @@ Dependencies:
 - Pillow (PIL): For image processing
 - Standard libraries: json, os
 """
+
 import json
 from PIL import Image, ImageEnhance
 import os
 from typing import Dict, List, Any
+import context_utils as cu
 
 def load_menu(fn):
     """
@@ -225,7 +227,6 @@ def load_page_cat(json_file: str) -> Dict[str, List[str]]:
     except json.JSONDecodeError as e:
         print(f"Error: Invalid JSON format in file: {json_file}")
         raise
-
 
 # Functional testing
 if __name__ == '__main__':

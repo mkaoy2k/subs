@@ -25,6 +25,10 @@ import os
 import datetime
 import json
 import csv
+from datetime import datetime
+from typing import Dict, Any, List, Union, Optional, Tuple
+import email_utils as eu
+from pathlib import Path
 from dotenv import load_dotenv  # pip install python-dotenv
 import logging
 
@@ -41,20 +45,23 @@ dbn = os.getenv("DB_NAME", "data/users.db")
 db_path = os.path.join(os.path.dirname(__file__), dbn)
 db_tables = {
     "user": os.getenv("TBL_USR", "user"),
-    "article": os.getenv("TBL_ARTICLE", "article")
+    "article": os.getenv("TBL_ARTICLE", "article"),
+    "subscriber": "subscriber"  # not a `subscriber` table, merged into user table
     }
 Subscriber_State = {
     'active': 1, 
     'pending': 0,
     'inactive': -1,
-    'in_contact': -2    # for users from contact form
+    'in_contact': -2,
+    'all': 9    # not used as a state but for query all-state subscribers
     }
 Article_State = {
-    'action_taken': 2,    # for articles from contact form
-    'approved': 1,        # for articles from article form
-    'pending': 0,         # for articles from both forms
-    'rejected': -1,       # for articles from article form
-    'ignored': -2         # for articles from contact form
+    'action_taken': 2,    # articles from contact form
+    'approved': 1,        # approved articles
+    'pending': 0,         # pending for review to approve or reject
+    'rejected': -1,       # rejected articles
+    'ignored': -2,
+    'all': 9    # not used as a state but for query all-state articles
     }
 # Values for Article categories
 Article_Categories = {
@@ -64,7 +71,8 @@ Article_Categories = {
     "faq": "FAQ", 
     "about": "About",
     "contact": "Contact",
-    "feedback": "Feedback"
+    "feedback": "Feedback",
+    "all": "all"    # not used as a category but for query all-category articles
     }
 
 def get_db_connection():
@@ -91,61 +99,6 @@ def add_user_id_column():
                 log.error(f"Error adding user_id column: {e}")
                 return False
     return False
-
-def rename_sub_id_to_user_id():
-    """Rename sub_id column to user_id in article table if it exists"""
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Check if sub_id column exists and user_id doesn't exist
-        cursor.execute(f"PRAGMA table_info({db_tables['article']})")
-        columns = {column[1]: column for column in cursor.fetchall()}
-        
-        if 'sub_id' in columns and 'user_id' not in columns:
-            # Rename the column by creating a new table and copying data
-            cursor.executescript(f"""
-                -- Create a new table with the updated schema
-                CREATE TABLE {db_tables['article']}_new (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    title TEXT NOT NULL,
-                    content TEXT NOT NULL,
-                    category TEXT NOT NULL DEFAULT {Article_Categories['news']},
-                    author TEXT,
-                    source TEXT,
-                    src_url TEXT,
-                    image_url TEXT,
-                    l10n TEXT,
-                    created_at TEXT DEFAULT (datetime('now')),
-                    updated_at TEXT DEFAULT (datetime('now')),
-                    user_id INTEGER DEFAULT 0,
-                    is_censored INTEGER DEFAULT 0
-                );
-                
-                -- Copy data from old table to new table
-                INSERT INTO {db_tables['article']}_new 
-                (id, title, content, category, author, source, src_url, 
-                 image_url, l10n, created_at, updated_at, user_id, is_censored)
-                SELECT id, title, content, category, author, source, src_url, 
-                       image_url, l10n, created_at, updated_at, sub_id, is_censored
-                FROM {db_tables['article']};
-                
-                -- Drop the old table
-                DROP TABLE {db_tables['article']};
-                
-                -- Rename the new table to the original name
-                ALTER TABLE {db_tables['article']}_new RENAME TO {db_tables['article']};
-            """)
-            conn.commit()
-            logging.info("Renamed sub_id column to user_id in article table")
-            
-    except sqlite3.Error as e:
-        logging.error(f"Error renaming sub_id to user_id: {e}")
-        if conn:
-            conn.rollback()
-    finally:
-        if conn:
-            conn.close()
 
 def init_db():
     """Initialize the database with required tables"""
@@ -194,61 +147,133 @@ def init_db():
         conn.execute(sql_stmt)
         
         # Create triggers to automatically update the updated_at timestamp
-        for table_name in [db_tables['user'], db_tables['article']]:
-            # First drop the trigger if it exists
+        tables_with_updated_at = [
+            db_tables['user'],
+            db_tables['article']
+        ]
+        
+        for table_name in tables_with_updated_at:
+            # Drop existing trigger if it exists
+            drop_trigger_sql = f"""
+            DROP TRIGGER IF EXISTS update_{table_name}_timestamp;
+            """
             try:
-                conn.execute(f"DROP TRIGGER IF EXISTS update_{table_name}_timestamp")
+                conn.execute(drop_trigger_sql)
             except sqlite3.OperationalError as e:
-                if "no such table" not in str(e):
-                    raise
+                log.warning(f"Failed to drop trigger for {table_name}: {str(e)}")
             
             # Create the new trigger
-            trigger_sql = f"""
-            CREATE TRIGGER update_{table_name}_timestamp
+            create_trigger_sql = f"""
+            CREATE TRIGGER IF NOT EXISTS update_{table_name}_timestamp
             AFTER UPDATE ON {table_name}
             FOR EACH ROW
             BEGIN
-                UPDATE {table_name} 
+                UPDATE {table_name}
                 SET updated_at = datetime('now')
-                WHERE rowid = NEW.rowid;
+                WHERE id = NEW.id;
             END;
             """
             try:
-                conn.execute(trigger_sql)
+                conn.execute(create_trigger_sql)
+                log.info(f"Created/Updated trigger for table: {table_name}")
             except sqlite3.OperationalError as e:
-                if "already exists" not in str(e):
-                    raise
+                log.error(f"Failed to create trigger for {table_name}: {str(e)}")
+                raise
         
         conn.commit()
 
-def add_subscriber(email, token, lang=None):
-    """Add a new subscriber with pending status 
-    or update existing one with active status"""
+def add_or_update_subscriber(user_data: Dict[str, Any], 
+    update: bool = True
+) -> int:
+    """
+    Add a new subscriber with is_active status 
+    or update existing one with is_active status
+    
+    Args:
+        user_data (Dict[str, Any]): A dictionary containing user data
+        update (bool): Whether to update an existing subscriber (default: True)
+    
+    Returns:
+        int: The ID of the added or updated subscriber
+        
+    Raises:
+        sqlite3.IntegrityError: If a subscriber with the email already exists and update=False
+    Example:
+        >>> add_or_update_subscriber({
+            'email': 'test@example.com',
+            'is_active': Subscriber_State['active'],
+            'token': 'test_token',
+            'l10n': 'en'
+        }, update=False)
+    """
+    
     with get_db_connection() as conn:
+        # Validate required fields
+        required_fields = ['email', 'is_active', 'token', 'l10n']
+        missing_fields = [field for field in required_fields if field not in user_data]
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+        email = user_data.get('email')
+        is_active = user_data.get('is_active')
+        token = user_data.get('token')
+        lang = user_data.get('l10n')
         try:
-            if lang:
-                conn.execute(f'''
-                INSERT INTO {db_tables['user']} (email, token, is_active, l10n, created_at)
-                VALUES (?, ?, {Subscriber_State['pending']}, ?, CURRENT_TIMESTAMP)
-                ON CONFLICT(email) DO UPDATE SET
-                    is_active = {Subscriber_State['active']},
-                token = excluded.token,
-                l10n = excluded.l10n,
-                updated_at = CURRENT_TIMESTAMP
-                ''', (email, token, lang))
-            else:
-                conn.execute(f'''
-                INSERT INTO {db_tables['user']} (email, token, is_active, created_at)
-                VALUES (?, ?, {Subscriber_State['pending']}, CURRENT_TIMESTAMP)
-                ON CONFLICT(email) DO UPDATE SET
-                    is_active = {Subscriber_State['active']},
-                token = excluded.token,
-                updated_at = CURRENT_TIMESTAMP
-                ''', (email, token))
-            conn.commit()
-            return True
-        except sqlite3.IntegrityError:
-            return False
+            with get_db_connection() as conn:
+                # First check if user exists
+                cursor = conn.cursor()
+                cursor.execute(
+                    f"SELECT id FROM {db_tables['user']} WHERE email = ?",
+                    (email,)
+                )
+                existing_user = cursor.fetchone()
+            
+                if existing_user and not update:
+                    raise sqlite3.IntegrityError(f"Subscriber with email {email} already exists")
+                
+                if lang:
+                    conn.execute(f'''
+                    INSERT INTO {db_tables['user']} (
+                        email, is_active, token, l10n, 
+                        created_at)
+                    VALUES (
+                        ?, ?, ?, ?, 
+                        CURRENT_TIMESTAMP
+                        )
+                    ON CONFLICT(email) DO UPDATE SET
+                        is_active = excluded.is_active,
+                        token = excluded.token,
+                        l10n = excluded.l10n,
+                        updated_at = CURRENT_TIMESTAMP
+                    ''', (email, is_active, token, lang))
+                else:
+                    conn.execute(f'''
+                    INSERT INTO {db_tables['user']} (
+                        email, is_active, token,
+                        created_at)
+                    VALUES (
+                        ?, ?, ?, 
+                        CURRENT_TIMESTAMP)
+                    ON CONFLICT(email) DO UPDATE SET
+                        is_active = excluded.is_active,
+                        token = excluded.token,
+                        updated_at = CURRENT_TIMESTAMP
+                    ''', (email, is_active, token))
+                
+                conn.commit()
+                return True
+            
+        except sqlite3.IntegrityError as e:
+            conn.rollback()
+            if "UNIQUE constraint failed" in str(e):
+                error_msg = f"Subscriber with email {email} already exists"
+                logging.error(f"{error_msg}: {str(e)}")
+                raise sqlite3.IntegrityError(error_msg) from e
+            raise  # Re-raise other integrity errors
+        except Exception as e:
+            conn.rollback()
+            error_msg = f"Failed to add or update subscriber with email {email}"
+            logging.error(f"{error_msg}: {str(e)}")
+            raise Exception(error_msg) from e
 
 def remove_subscriber(email):
     """
@@ -298,44 +323,45 @@ def verify_token(email, token):
 
 def get_subscribers(state='active', lang=None):
     """
-    Fetch subscribers from the database based on their status
+    Fetch subscribers from the `user` table based on their 
+    subscription status and language
     
     Args:
         state (str): Filter subscribers by state. 
-            'active' - only active subscribers (default)
-            'inactive' - only inactive subscribers
-            'pending' - only pending subscribers
-            'all' - all subscribers regardless of subscriber state and language 
-    
+            see Subscriber_State dictionary for valid values
+        lang (str): Filter subscribers by language. 
+            see L10N.json file for valid keys
+            
     Returns:
         list: A list of dictionaries containing subscriber information.
-              Each dictionary has keys: id, email, token, is_active, created_at, updated_at
+              Each dictionary has keys: 
+              id, email, token, is_active, created_at, updated_at
     """
     # Validate status parameter
-    if state not in ('active', 'inactive', 'pending', 'all'):
-        raise ValueError("state must be 'active', 'inactive', 'pending', or 'all'")
+    valid_states = [k for k in Subscriber_State.keys() if k != 'all'] + ['all']
+    if state not in valid_states:
+        raise ValueError(f"state must be one of: {', '.join(valid_states)}")
     
     with get_db_connection() as conn:
-        conn.row_factory = sqlite3.Row  # This enables column access by name
         
         # Build the query based on status
         if state == 'all':
             cursor = conn.execute(f"""
             SELECT * FROM {db_tables['user']} 
-            ORDER BY created_at DESC
+            ORDER BY id ASC
         """)
         else:
             if lang:
                 cursor = conn.execute(f"""
                 SELECT * FROM {db_tables['user']} 
                 WHERE is_active = ? AND l10n = ?
-                ORDER BY created_at DESC
+                ORDER BY id ASC
             """, (Subscriber_State[state], lang))
             else:
                 cursor = conn.execute(f"""
                 SELECT * FROM {db_tables['user']} 
                 WHERE is_active = ?
-                ORDER BY created_at DESC
+                ORDER BY id ASC
             """, (Subscriber_State[state],))
         
         subscribers = [dict(row) for row in cursor.fetchall()]
@@ -355,22 +381,16 @@ def get_subscriber(email):
         email (str): The email address to query
         
     Returns:
-        dict or None: A dictionary containing user information if found, None otherwise.
-                     The dictionary includes the following keys:
-                     - id: Unique user identifier
-                     - email: Email address
-                     - token: Verification token
-                     - is_active: Account status (1/0/-1)
-                     - l10n: Language/locale
-                     - created_at: Creation timestamp
-                     - updated_at: Last update timestamp
+        dict or None: A dictionary containing user information 
+        if found, None otherwise.
+        The dictionary includes all the fields in the 
+        db_tables['user'] table.
     """
     if not email or not isinstance(email, str):
         log.warning("Invalid email provided to get_user")
         return None
         
     with get_db_connection() as conn:
-        conn.row_factory = sqlite3.Row
         cursor = conn.execute(f"""
             SELECT * 
             FROM {db_tables['user']} 
@@ -386,6 +406,37 @@ def get_subscriber(email):
     log.debug(f"No user found with email: {email}")
     return None
 
+def add_or_update_user(user_data, update=False):
+    """
+    Add or update a user in the db_table['user'] table,
+    depending on the value of update.
+    
+    Args:
+        user_data (dict): Dictionary containing user information
+        update (bool, optional): Whether to update an existing user. Defaults to False.
+    
+    Returns:
+        int: The ID of the newly created/updated user if successful, None otherwise
+    """
+    if not user_data or not isinstance(user_data, dict):
+        log.error("No user data provided or invalid format")
+        return None
+    if not user_data.get('email'):
+        log.error("Missing required fields for user update")
+        return None
+    if update:
+        # get user_id by email
+        user_rcd = get_subscriber(user_data['email'])
+        if not user_rcd:
+            log.error("Missing required fields for user update")
+            return None
+        return update_user(user_rcd['id'], user_data)
+    else:
+        if not user_data.get('is_active') or not user_data.get('l10n'):
+            log.error("Missing required fields for user creation")
+            return None
+        return create_user(user_data['email'], user_data['is_active'], user_data['l10n'])
+
 def update_user(user_id, update_fields):
     """
     Update user information with the given fields.
@@ -396,35 +447,43 @@ def update_user(user_id, update_fields):
                              Example: {'email': 'new@example.com', 'l10n': 'US'}
         
     Returns:
-        bool: True if update was successful, False otherwise
+        int: The ID of the updated user if successful, None otherwise
     """
     if not isinstance(user_id, int) or user_id <= 0:
         log.error(f"Invalid user ID provided for update: {user_id}")
-        return False
+        return None
         
     if not update_fields or not isinstance(update_fields, dict):
         log.error("No update fields provided or invalid format")
-        return False
+        return None
         
     # Remove any None values and create a clean update dictionary
     clean_updates = {k: v for k, v in update_fields.items() if v is not None}
     if not clean_updates:
         log.warning("No valid fields to update")
-        return False
+        return None
         
-    # List of allowed fields that can be updated
-    allowed_fields = {'email', 'is_active', 'l10n'}
+    # Get the list of columns from the user table
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({db_tables['user']})")
+        table_columns = {row[1] for row in cursor.fetchall()}  # Get all column names
     
-    # Filter out any fields that aren't in the allowed set
+    # Remove 'id' and 'created_at' as they shouldn't be updated
+    table_columns.discard('id')
+    table_columns.discard('created_at')
+    
+    # Filter out any fields that aren't in the table columns
     valid_updates = {k: v for k, v in clean_updates.items() 
-                    if k in allowed_fields and v is not None}
+                    if k in table_columns and v is not None}
                     
     if not valid_updates:
-        log.error(f"No valid fields to update. Allowed fields: {allowed_fields}")
-        return False
+        log.error(f"No valid fields to update. Allowed fields: {table_columns}")
+        return None
         
     try:
         with get_db_connection() as conn:
+            cursor = conn.cursor()
             # Build the SET clause dynamically
             set_clause = ", ".join(f"{field} = ?" for field in valid_updates.keys())
             values = list(valid_updates.values())
@@ -437,45 +496,51 @@ def update_user(user_id, update_fields):
             """
             
             log.debug(f"Executing: {sql} with values: {values}")
-            cursor = conn.cursor()
             cursor.execute(sql, values)
             rows_affected = cursor.rowcount
             conn.commit()
             
             if rows_affected > 0:
                 log.info(f"Successfully updated user ID {user_id} with fields: {list(valid_updates.keys())}")
-                return True
+                return user_id
             else:
                 log.warning(f"No user found with ID: {user_id}")
-                return False
+                return None
                 
     except sqlite3.IntegrityError as e:
         log.error(f"Integrity error while updating user ID {user_id}: {str(e)}")
         if "UNIQUE constraint failed" in str(e):
             log.error("Email address already exists in the system")
-        return False
+        return None
     except sqlite3.Error as e:
         log.error(f"Database error while updating user ID {user_id}: {str(e)}")
-        return False
+        return None
     except Exception as e:
         log.error(f"Unexpected error while updating user ID {user_id}: {str(e)}")
-        return False
+        return None
 
 def create_user(email, state, lang=None):
     """
-    Create a new user in the database.
+    Create a new user in the db_table['user'] table with the key
+    of email.
     
     Args:
         email (str): User's email address (must be unique)
-        state (int): Account state (use Subscriber_State values)
+        state (int): user state (see Subscriber_State values)
         lang (str, optional): User's preferred language code. Defaults to None.
         
     Returns:
         int or None: The ID of the newly created user if successful, None otherwise
+        
+    Example:
+        >>> user_id = create_user("user@example.com", Subscriber_State['active'], "en")
+        >>> print(user_id)
+        123
     """
     if not email or not isinstance(email, str):
-        log.error("Invalid email provided")
-        return None
+        if not eu.validate_email(email):
+            log.error("Invalid email provided")
+            return None
         
     if state not in Subscriber_State.values():
         log.error(f"Invalid state provided: {state}")
@@ -518,6 +583,24 @@ def create_user(email, state, lang=None):
     except Exception as e:
         log.error(f"Unexpected error while creating user {email}: {str(e)}")
         return None
+
+def get_users():
+    """
+    Fetch all users from the db_table['user'] table
+    
+    Returns:
+        list: A list of dictionaries containing user information.
+              Each dictionary has keys of all columns 
+              in the db_table['user'] table
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            SELECT * FROM {db_tables['user']} 
+            ORDER BY id ASC
+        """)
+        users = [dict(row) for row in cursor.fetchall()]
+        return users
 
 def get_user_email(user_id):
     """
@@ -569,11 +652,11 @@ def delete_user(user_id):
         
     with get_db_connection() as conn:
         try:
+            cursor = conn.cursor()
             # Use parameterized query to prevent SQL injection
             sql = f"DELETE FROM {db_tables['user']} WHERE id = ?"
             log.debug(f"Executing: {sql} with user_id: {user_id}")
             
-            cursor = conn.cursor()
             cursor.execute(sql, (user_id,))
             rows_affected = cursor.rowcount
             conn.commit()  # Commit the transaction
@@ -611,11 +694,11 @@ def delete_subscriber(email):
         
     with get_db_connection() as conn:
         try:
+            cursor = conn.cursor()
             # Use parameterized query to prevent SQL injection
             sql = f"DELETE FROM {db_tables['user']} WHERE email = ?"
             log.debug(f"Executing: {sql} with email: {email}")
             
-            cursor = conn.cursor()
             cursor.execute(sql, (email,))
             rows_affected = cursor.rowcount
             conn.commit()  # Commit the transaction
@@ -638,69 +721,63 @@ def delete_subscriber(email):
 
 def get_articles(category, limit=None):
     """
-    Retrieve the latest articles by category
+    Retrieve a number (given by limit) of articles by category
+    or all articles if limit is None given by category.
+    The category can be `all` to retrieve all articles without 
+    specific category.
+    The articles must be approved by admin review.
     
     Args:
-        category (str): Article category to filter by
-        limit (int, optional): Maximum number of articles to return
+        category (str): Article category to filter by, or 'all' to get articles from all categories
+        limit (int, optional): Maximum number of articles to return. If None, returns all matching articles.
         
     Returns:
         list: A list of article information dictionaries, or None if no articles found.
-              Each dictionary contains the following keys:
-              - id: Article ID
-              - title: Article title
-              - content: Article content
-              - category: Article category
-              - author: Author name
-              - source: Source of the article
-              - src_url: Source URL
-              - image_url: URL of the article's image
-              - l10n: Language/locale
-              - created_at: Creation timestamp
-              - updated_at: Last update timestamp
+              Each dictionary contains all columns of the 
+              `article` table.
     """
-    if not category:
-        log.warning("No category provided to get_article")
+    if not category or category not in Article_Categories.values():
+        log.warning(f"Invalid category '{category}' provided to get_articles. Must be one of: {', '.join(Article_Categories.values())}")
         return None
         
     with get_db_connection() as conn:
-        conn.row_factory = sqlite3.Row
-        if limit is None:
-            cursor = conn.execute(f"""
-                SELECT * FROM {db_tables['article']} 
-                WHERE is_censored = 1 
-                AND category = ?
-                ORDER BY id ASC
-                """, (category,))
-        elif limit > 0:
-            cursor = conn.execute(f"""
-                SELECT * FROM {db_tables['article']} 
-                WHERE is_censored = 1 
-                AND category = ?
-                ORDER BY id ASC
-                LIMIT {limit}
-                """, (category,))
-        else:
-            log.debug(f"Invalid limit value: {limit}")
-            return None
+        cursor = conn.cursor()
+        query = f"""
+            SELECT * FROM {db_tables['article']} 
+            WHERE is_censored = ?
+        """
+        params = [Article_State['approved']]
         
-        results = cursor.fetchall()
-        if results:
-            articles = []
-            for result in results:
-                article = dict(result)
-                log.debug(f"Found article in category '{category}': {article['id']}")
-                articles.append(article)
-            log.debug(f"Found articles in category '{category}': {articles}")
-            return articles
+        # Add category filter if not 'all'
+        if category.lower() != 'all':
+            query += " AND category = ?"
+            params.append(category)
             
-    log.debug(f"No article found in category: {category}")
-    return None
+        # Always order by id in ascending order
+        query += " ORDER BY id ASC"
+        
+        # Add limit if specified and valid
+        if limit is not None and limit > 0:
+            query += f" LIMIT {limit}"
+        elif limit == 0:
+            log.debug("Limit of 0 requested, returning no results")
+            return []
+            
+        try:
+            cursor.execute(query, tuple(params))
+            articles = [dict(row) for row in cursor.fetchall()]
+            return articles if articles else None
+        except sqlite3.Error as e:
+            log.error(f"Database error while retrieving articles: {str(e)}")
+            return None
+        except Exception as e:
+            log.error(f"Unexpected error while retrieving articles: {str(e)}")
+            return None
 
 def get_articles_byDays(category, byDays=7):
     """
-    Retrieve articles from the last N days by category,
-    sorted by updated_at in descending order
+    Retrieve a number (given by previous byDays from today) of 
+    articles, given by category, and sorted by id in ascending order
     
     Args:
         category (str): Article category to filter by
@@ -708,21 +785,11 @@ def get_articles_byDays(category, byDays=7):
         
     Returns:
         list: A list of article information dictionaries from the specified time period,
-              or None if no articles found. Each dictionary contains:
-              - id: Article ID
-              - title: Article title
-              - content: Article content
-              - category: Article category
-              - author: Author name
-              - source: Source of the article
-              - src_url: Source URL
-              - image_url: URL of the article's image
-              - l10n: Language/locale
-              - created_at: Creation timestamp
-              - updated_at: Last update timestamp
+              or None if no articles found. Each dictionary contains
+              all columns of the `article` table.
     """
-    if not category:
-        log.warning("No category provided to get_articles_byDays")
+    if not category or category not in Article_Categories.values():
+        log.warning(f"Invalid category '{category}' provided to get_articles_byDays. Must be one of: {', '.join(Article_Categories.keys())}")
         return None
         
     # Calculate date N days ago
@@ -731,14 +798,14 @@ def get_articles_byDays(category, byDays=7):
     date_str = days_ago.strftime('%Y-%m-%d %H:%M:%S')
     
     with get_db_connection() as conn:
-        conn.row_factory = sqlite3.Row
-        cursor = conn.execute(f"""
+        cursor = conn.cursor()
+        cursor.execute(f"""
             SELECT * FROM {db_tables['article']} 
-            WHERE is_censored = 1
+            WHERE is_censored = ?
             AND category = ? 
             AND updated_at >= ?
-            ORDER BY updated_at DESC
-        """, (category, date_str))
+            ORDER BY id ASC
+        """, (Article_State['approved'], category, date_str))
         
         results = cursor.fetchall()
         if results:
@@ -846,8 +913,8 @@ def get_article_byId(article_id):
         
     try:
         with get_db_connection() as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute(f"""
+            cursor = conn.cursor()
+            cursor.execute(f"""
                 SELECT * FROM {db_tables['article']}
                 WHERE id = ?
             """, (article_id,))
@@ -901,8 +968,8 @@ def get_next_article(article_id, category, is_censored=Article_State['pending'])
         return None
     try:
         with get_db_connection() as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute(f"""
+            cursor = conn.cursor()
+            cursor.execute(f"""
                 SELECT * FROM {db_tables['article']}
                 WHERE is_censored = ?
                 AND id >= ?
@@ -973,57 +1040,127 @@ def review_article(article_id, is_censored, category=None):
         log.error(f"Error setting article state to {is_censored} for article with ID {article_id}: {str(e)}")
         return False
     
-def create_article(title, content, category, 
-                   author, source, 
-                   src_url=None, image_url=None, 
-                   user_id=0, l10n='US'):
+def add_or_update_article(article_data, update=False):
     """
-    Create a new article in the database
+    Create a new article or update an existing article 
+    in the db_table['article'] table, depending on the
+    value of the `update` parameter.
+    If `update` is True, update the article with the given `title`.
+    If `update` is False, create a new article. return error if 
+    `title` exists.
     
     Args:
-        title (str): Article title
-        content (str): Article content (can include HTML)
-        category (str): Article category (e.g., 'News', 'Story', 'Events', 'FAQ', 'About')
-        author (str): Author's name
-        source (str): Source of the article
-        src_url (str, optional): URL to the original article
-        image_url (str, optional): URL to an image for the article
-        user_id (int, optional): User ID. Defaults to 0.
-        l10n (str, optional): Language/locale code. Defaults to 'US'.
+        article_data (dict): Article data containing fields that are
+        specified in the db_table['article'] table.
+        update (bool): Whether to update an existing article or create a new one.
         
     Returns:
-        int or None: The ID of the newly created article if successful, None otherwise
+        int or None: The ID of the newly created/updated article if successful, None otherwise
     """
-    if not all([title, content, category, author, source]):
-        log.debug("Missing required article fields")
+    if not article_data or 'title' not in article_data:
+        log.error("Missing required article data or title")
         return None
         
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(f"""
-                INSERT INTO {db_tables['article']} (
-                    title, content, category, author, 
-                    source, src_url, image_url, user_id, l10n,
-                    created_at, updated_at, is_censored
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                title, content, category, author,
-                source, src_url, image_url, user_id, l10n,
-                datetime.datetime.now(), 
-                datetime.datetime.now(), 
-                Article_State['pending']
-            ))
+            now = datetime.now()
             
-            article_id = cursor.lastrowid
-            conn.commit()
-            log.info(f"Successfully created article with ID: {article_id}")
-            return article_id
+            # dynamically get table columns from article table
+            cursor.execute(f"PRAGMA table_info({db_tables['article']})")       
+            table_columns = {row[1] for row in cursor.fetchall()}  # Get all column names
+            
+            # Remove 'id' and 'created_at' as they shouldn't be updated
+            table_columns.discard('id')
+            table_columns.discard('created_at')
+
+            # Check if article with this title already exists
+            cursor.execute(f"""
+                SELECT id FROM {db_tables['article']} 
+                WHERE title = ?
+            """, (article_data['title'],))
+            
+            existing_article = cursor.fetchone()
+            
+            if existing_article:
+                if not update:
+                    log.error(f"Article with title '{article_data['title']}' already exists")
+                    return None
+                
+                # Update existing article
+                article_id = existing_article['id']
+                update_fields = []
+                params = []
+                
+                # Build update fields dynamically from article_data
+                for field in article_data:
+                    if field in table_columns:
+                        update_fields.append(f"{field} = ?")
+                        params.append(article_data[field])
+                
+                # Add is_censored if not provided, default to pending
+                if 'is_censored' not in article_data:
+                    update_fields.append("is_censored = ?")
+                    params.append(Article_State['pending'])
+                
+                # Build and execute update query
+                update_query = f"""
+                    UPDATE {db_tables['article']}
+                    SET {', '.join(update_fields)}
+                    WHERE id = ?
+                """
+                params.append(article_id)
+                
+                cursor.execute(update_query, params)
+                conn.commit()
+                log.info(f"Successfully updated article ID: {article_id}")
+                return article_id
+            
+            else:
+                # Insert new article
+                required_fields = ['title', 'content', 'category', 'author', 'source']
+                for field in required_fields:
+                    if field not in article_data:
+                        log.error(f"Missing required field: {field}")
+                        return None
+                
+                # Prepare data for insertion
+                # Set default values for optional fields
+                defaults = {
+                    'src_url': '',
+                    'image_url': '',
+                    'user_id': 0,
+                    'l10n': 'US',
+                    'is_censored': Article_State['pending']
+                }
+                
+                # Use provided values or defaults
+                values = []
+                placeholders = []
+                fields = []
+                for field in article_data:
+                    if field in table_columns:
+                        value = article_data.get(field, defaults.get(field))
+                        values.append(value)
+                        placeholders.append('?')
+                        fields.append(field)
+                
+                # Build and execute insert query
+                insert_query = f"""
+                    INSERT INTO {db_tables['article']} 
+                    ({', '.join(fields)})
+                    VALUES ({', '.join(placeholders)})
+                """
+                
+                cursor.execute(insert_query, values)
+                article_id = cursor.lastrowid
+                conn.commit()
+                log.info(f"Successfully created article with ID: {article_id}")
+                return article_id
             
     except sqlite3.Error as e:
-        log.error(f"Error creating article: {str(e)}")
+        log.error(f"Database error in add_or_update_article: {str(e)}")
         return None
-
 
 def delete_article(article_id):
     """
@@ -1089,287 +1226,394 @@ def drop_table(tbl):
         log.error(f"Error dropping table '{tbl}': {str(e)}")
         return False
     
-def export_users_to_file(file_path, format_type='json'):
+def import_subscribers(subscribers: List[Dict[str, Any]]) -> Dict[str, Any]:
     """
-    Export all users from the database to a file in JSON or CSV format.
+    Import subscribers into the db_tables['user'] table.
+    
+    If a subscriber already exists (based on email), update 
+    the following fields:
+    - is_active 
+    - l10n
+    
+    If the subscriber does not exist, insert a new subscriber with 
+    the following fields:
+    - email
+    - is_active
+    - l10n
+    - token
+    - password_hash
+    - salt
+    - created_at
     
     Args:
-        file_path (str): Path where the file will be saved
-        format_type (str): Output format - 'json' or 'csv'
+        subscribers: List of subscriber dictionaries with required fields:
+            - email (str): Subscriber's email address (required)
+            - is_active (int, optional): Subscription status (default: inactive)
+            - l10n (str, optional): Language/locale (default: 'US')
+            - token (str, optional): Authentication token (default: '')
+            - password_hash (str, optional): Hashed password (default: '')
+            - salt (str, optional): Password salt (default: '')
+            - created_at (str, optional): Creation timestamp (default: current time)
         
     Returns:
-        bool: True if export was successful, False otherwise
+        Dict with import results:
+        {
+            'success': bool,  # True if no errors occurred
+            'imported': int,  # Number of successfully imported subscribers
+            'skipped': int,   # Number of skipped subscribers (due to errors)
+            'errors': List[str]  # List of error messages if any
+        }
     """
-    try:
-        # Create directory if it doesn't exist
-        os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
-        
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM {db_tables['user']}")
-            users = cursor.fetchall()
-            
-            if not users:
-                log.warning("No users found to export")
-                return False
-                
-            # Convert to list of dicts
-            user_list = [dict(user) for user in users]
-            
-            if format_type.lower() == 'json':
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump(user_list, f, indent=2, default=str)
-            elif format_type.lower() == 'csv':
-                with open(file_path, 'w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=user_list[0].keys())
-                    writer.writeheader()
-                    writer.writerows(user_list)
-            else:
-                log.error(f"Unsupported format: {format_type}. Use 'json' or 'csv'")
-                return False
-                
-            log.info(f"Successfully exported {len(user_list)} users to {file_path}")
-            return True
-            
-    except Exception as e:
-        log.error(f"Error exporting users: {str(e)}")
-        return False
-
-def export_articles_to_file(file_path, format_type='json'):
-    """
-    將所有文章從資料庫匯出為 JSON 或 CSV 格式的檔案。
-    
-    參數:
-        file_path (str): 檔案儲存路徑
-        format_type (str): 輸出格式 - 'json' 或 'csv'
-        
-    回傳:
-        bool: 匯出成功回傳 True，失敗回傳 False
-    """
-    try:
-        # 如果目錄不存在則建立
-        os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
-        
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"SELECT * FROM {db_tables['article']}")
-            articles = cursor.fetchall()
-            
-            if not articles:
-                log.warning("沒有找到要匯出的文章")
-                return False
-                
-            # 轉換為字典列表
-            article_list = [dict(article) for article in articles]
-            
-            if format_type.lower() == 'json':
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    json.dump(article_list, f, indent=2, default=str, ensure_ascii=False)
-            elif format_type.lower() == 'csv':
-                with open(file_path, 'w', newline='', encoding='utf-8') as f:
-                    writer = csv.DictWriter(f, fieldnames=article_list[0].keys())
-                    writer.writeheader()
-                    writer.writerows(article_list)
-            else:
-                log.error(f"不支援的格式: {format_type}。請使用 'json' 或 'csv'")
-                return False
-                
-            log.info(f"成功匯出 {len(article_list)} 篇文章至 {file_path}")
-            return True
-            
-    except Exception as e:
-        log.error(f"匯出文章時發生錯誤: {str(e)}")
-        return False
-
-
-def import_users_from_file(file_path, format_type='json'):
-    """
-    從 JSON 或 CSV 檔案匯入使用者到資料庫。
-    如果使用者已存在（根據電子郵件），則更新該使用者的資料。
-    
-    Args:
-        file_path (str): 匯入檔案的路徑
-        format_type (str): 輸入格式 - 'json' 或 'csv'
-        
-    Returns:
-        tuple: (成功數量, 錯誤數量, 跳過數量)
-    """
-    success = 0
-    errors = 0
+    imported = 0
     skipped = 0
+    errors = []
     
-    if not os.path.exists(file_path):
-        log.error(f"找不到檔案: {file_path}")
-        return 0, 1, 0
-        
-    try:
-        users = []
-        if format_type.lower() == 'json':
-            with open(file_path, 'r', encoding='utf-8') as f:
-                users = json.load(f)
-        elif format_type.lower() == 'csv':
-            with open(file_path, 'r', encoding='utf-8') as f:
-                users = list(csv.DictReader(f))
-        else:
-            log.error(f"不支援的格式: {format_type}。請使用 'json' 或 'csv'")
-            return 0, 1, 0
-            
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            for user in users:
-                try:
-                    email = user.get('email')
-                    if not email:
-                        log.warning("跳過缺少電子郵件的使用者記錄")
-                        skipped += 1
-                        continue
-                        
-                    # 檢查使用者是否已存在
-                    cursor.execute(
-                        f"SELECT id FROM {db_tables['user']} WHERE email = ?",
-                        (email,)
-                    )
-                    existing_user = cursor.fetchone()
-                    
-                    if existing_user:
-                        # 更新已存在的使用者
-                        user_id = existing_user[0]
-                        cursor.execute(f"""
-                            UPDATE {db_tables['user']} 
-                            SET is_active = ?,
-                                l10n = ?,
-                                token = ?,
-                                is_admin = ?,
-                                password_hash = ?,
-                                salt = ?,
-                                updated_at = CURRENT_TIMESTAMP
-                            WHERE id = ?
-                        """, (
-                            int(user.get('is_active', 0)),
-                            user.get('l10n', 'US'),
-                            user.get('token', ''),
-                            int(user.get('is_admin', 0)),
-                            user.get('password_hash', ''),
-                            user.get('salt', ''),
-                            user_id
-                        ))
-                        log.debug(f"已更新使用者: {email}")
-                    else:
-                        # 插入新使用者
-                        cursor.execute(f"""
-                            INSERT INTO {db_tables['user']} 
-                            (email, is_active, l10n, token, is_admin, password_hash, salt, created_at, updated_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, 
-                            COALESCE(?, CURRENT_TIMESTAMP), 
-                            COALESCE(?, CURRENT_TIMESTAMP))
-                        """, (
-                            email,
-                            int(user.get('is_active', 0)),
-                            user.get('l10n', 'US'),
-                            user.get('token', ''),
-                            int(user.get('is_admin', 0)),
-                            user.get('password_hash', ''),
-                            user.get('salt', ''),
-                            user.get('created_at'),
-                            user.get('updated_at')
-                        ))
-                        log.debug(f"已匯入新使用者: {email}")
-                    
-                    success += 1
-                    
-                except Exception as e:
-                    errors += 1
-                    log.error(f"匯入使用者 {user.get('email', '未知')} 時發生錯誤: {str(e)}")
-            
-            conn.commit()
-            
-        log.info(f"匯入完成。成功: {success}, 錯誤: {errors}, 跳過: {skipped}")
-        return success, errors, skipped
-        
-    except Exception as e:
-        log.error(f"匯入使用者時發生錯誤: {str(e)}")
-        return 0, 1, 0
+    # Ensure we have a list of subscribers
+    if not isinstance(subscribers, list):
+        return {
+            'success': False,
+            'imported': 0,
+            'skipped': 0,
+            'errors': ['Subscribers must be provided as a list of dictionaries']
+        }
     
-def import_articles_from_file(file_path, format_type='json'):
-    success = 0
-    errors = 0
-    skipped = 0
-    
-    if not os.path.exists(file_path):
-        log.error(f"File not found: {file_path}")
-        return 0, 1, 0
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
         
-    try:
-        articles = []
-        if format_type.lower() == 'json':
-            with open(file_path, 'r', encoding='utf-8') as f:
-                articles = json.load(f)
-        elif format_type.lower() == 'csv':
-            with open(file_path, 'r', encoding='utf-8') as f:
-                articles = list(csv.DictReader(f))
-        else:
-            log.error(f"Unsupported format: {format_type}. Use 'json' or 'csv'")
-            return 0, 1, 0
-            
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            
-            for article in articles:
-                try:
-                    # Check if article already exists
-                    cursor.execute(
-                        f"SELECT id FROM {db_tables['article']} WHERE title = ?",
-                        (article['title'],)
-                    )
-                    if cursor.fetchone():
-                        log.debug(f"Article {article['title']} already exists, skipping")
-                        skipped += 1
-                        continue
-                        
-                    # Insert new article with all fields
+        for i, sub in enumerate(subscribers, 1):
+            try:
+                if not isinstance(sub, dict):
+                    errors.append(f'Subscriber {i}: Expected a dictionary, got {type(sub).__name__}')
+                    skipped += 1
+                    continue
+                    
+                email = sub.get('email')
+                if not email:
+                    errors.append(f'Subscriber {i}: Missing required field "email"')
+                    skipped += 1
+                    continue
+                    
+                # Check if subscriber exists
+                cursor.execute(
+                    f'SELECT id FROM {db_tables["user"]} WHERE email = ?',
+                    (email,)
+                )
+                exists = cursor.fetchone() is not None
+                
+                if exists:
+                    # Update existing subscriber
                     cursor.execute(f"""
-                        INSERT INTO {db_tables['article']} 
-                        (title, content, category, author, source, 
-                         src_url, image_url, l10n, user_id, is_censored,
-                         created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, 
-                                ?, ?, ?, ?, ?,
-                                COALESCE(?, CURRENT_TIMESTAMP), 
-                                COALESCE(?, CURRENT_TIMESTAMP))
+                        UPDATE {db_tables['user']}
+                        SET is_active = ?,
+                            l10n = ?
+                        WHERE email = ?
                     """, (
-                        article.get('title'),
-                        article.get('content', ''),
-                        article.get('category', Article_Categories['news']),
-                        article.get('author'),
-                        article.get('source'),
-                        article.get('src_url'),
-                        article.get('image_url'),
-                        article.get('l10n', 'US'),
-                        int(article.get('user_id', 0)),
-                        int(article.get('is_censored', 0)),
-                        article.get('created_at'),
-                        article.get('updated_at')
+                        int(sub.get('is_active', Subscriber_State['inactive'])),
+                        sub.get('l10n', 'US'),
+                        email
                     ))
-                    success += 1
-                    log.debug(f"Imported article: {article.get('title')}")
+                    imported += 1
+                    log.debug(f'Updated subscriber: {email}')
+                else:
+                    # Insert new subscriber with all required fields
+                    cursor.execute(f"""
+                        INSERT INTO {db_tables['user']} (
+                            email, is_active, l10n, token,
+                            password_hash, salt, created_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        email,
+                        int(sub.get('is_active', Subscriber_State['inactive'])),
+                        sub.get('l10n', 'US'),
+                        sub.get('token', ''),
+                        sub.get('password_hash', ''),
+                        sub.get('salt', ''),
+                        sub.get('created_at', datetime.now())
+                    ))
+                    imported += 1
+                    log.debug(f'Imported new subscriber: {email}')
                     
-                except Exception as e:
-                    errors += 1
-                    log.error(f"Error importing article {article.get('title')}: {str(e)}")
-            
-            conn.commit()
-            
-        log.info(f"Import completed. Success: {success}, Errors: {errors}, Skipped: {skipped}")
-        return success, errors, skipped
+            except Exception as e:
+                error_msg = f'Error importing subscriber {i} ({email or "unknown"}): {str(e)}'
+                errors.append(error_msg)
+                skipped += 1
+                log.error(error_msg, exc_info=True)
         
+        try:
+            conn.commit()
+        except Exception as e:
+            error_msg = f'Database commit error: {str(e)}'
+            errors.append(error_msg)
+            log.error(error_msg, exc_info=True)
+            return {
+                'success': False,
+                'imported': 0,
+                'skipped': len(subscribers),
+                'errors': errors
+            }
+        
+    return {
+        'success': len(errors) == 0,
+        'imported': imported,
+        'skipped': skipped,
+        'errors': errors
+    }
+    
+def import_users(users: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Import users into the db_tables['user'] table.
+    
+    Args:
+        users: List of user dictionaries with all the fields,
+        except `updated_at` field
+            
+    Returns:
+        Dict with import results
+    """
+    imported = 0
+    skipped = 0
+    errors = []
+    
+    with get_db_connection() as conn:
+        for i, user in enumerate(users, 1):
+            try:
+                # Prepare user data for add_user function
+                user_data = {
+                    'email': user.get('email'),
+                    'password_hash': user.get('password_hash'),
+                    'salt': user.get('salt'),
+                    'is_active': user.get('is_active', Subscriber_State['inactive']),
+                    'l10n': user.get('l10n', 'US'),
+                    'token': user.get('token')
+                }
+                
+                # Use add_or_update_user to add or update users
+                user_id = add_or_update_user(user_data, update=True)
+                if user_id:
+                    imported += 1
+                    conn.commit()
+                else:
+                    errors.append(f"User {i} ({user.get('email', 'unknown')}): Failed to update user")
+                    skipped += 1
+                
+            except Exception as e:
+                errors.append(f"Error importing user {i} ({user.get('email', 'unknown')}): {str(e)}")
+                skipped += 1
+                conn.rollback()
+    
+    return {
+        'success': len(errors) == 0,
+        'imported': imported,
+        'skipped': skipped,
+        'errors': errors
+    }   
+    
+def import_articles(articles: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """
+    Import articles into the db_tables['article'] table.
+    
+    Args:
+        articles: List of article dictionaries with all the fields,
+        except `updated_at` field
+            
+    Returns:
+        Dict with import results
+    """
+    imported = 0
+    skipped = 0
+    errors = []
+    
+    with get_db_connection() as conn:
+        for i, article in enumerate(articles, 1):
+            try:
+                # Prepare article data for add_article function
+                article_data = {
+                    'title': article.get('title'),
+                    'content': article.get('content', ''),
+                    'category': article.get('category', Article_Categories['news']),
+                    'author': article.get('author'),
+                    'source': article.get('source'),
+                    'src_url': article.get('src_url'),
+                    'image_url': article.get('image_url'),
+                    'l10n': article.get('l10n', 'US'),
+                    'user_id': article.get('user_id', 0),
+                    'is_censored': article.get('is_censored', Article_State['pending'])
+                }
+                    
+                # Use add_article to add or update articles
+                article_id = add_or_update_article(article_data, update=True)
+                if article_id:
+                    imported += 1
+                    conn.commit()
+                else:
+                    errors.append(f"Article {i} ({article.get('title', 'unknown')}): Failed to update article")
+                    skipped += 1
+            except Exception as e:
+                errors.append(f"Error importing article {i} ({article.get('title', 'unknown')}): {str(e)}")
+                skipped += 1
+                conn.rollback()
+    
+    return {
+        'success': len(errors) == 0,
+        'imported': imported,
+        'skipped': skipped,
+        'errors': errors
+    }
+        
+def import_from_file(file_path: Union[str, Path], table: str) -> Dict[str, Any]:
+    """
+    Import records from a JSON or CSV file into the specified table.
+    
+    Args:
+        file_path: Path to the JSON or CSV file containing records data
+        db_connection: SQLite database connection object
+        
+    Returns:
+        Dict with import results: {
+            'success': bool,
+            'imported': int,
+            'skipped': int,
+            'errors': List[str]
+        }
+    """
+    file_path = Path(file_path)
+    if not file_path.exists():
+        return {
+            'success': False,
+            'imported': 0,
+            'skipped': 0,
+            'errors': [f"File not found: {file_path}"]
+        }
+    
+    try:
+        if file_path.suffix.lower() == '.json':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                rcds = json.load(f)
+                if not isinstance(rcds, list):
+                    rcds = [rcds]  # Handle single user object
+        elif file_path.suffix.lower() == '.csv':
+            with open(file_path, 'r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                rcds = list(reader)
+        else:
+            return {
+                'success': False,
+                'imported': 0,
+                'skipped': 0,
+                'errors': ["Unsupported file format. Please use JSON or CSV."]
+            }
+        if table == db_tables['user']:
+            return import_users(rcds)
+        elif table == db_tables['article']:
+            return import_articles(rcds)
+        elif table == db_tables['subscriber']:
+            return import_subscribers(rcds)
+        else:
+            return {
+                'success': False,
+                'imported': 0,
+                'skipped': 0,
+                'errors': [f"Unsupported table: {table}"]
+        }
+    
     except Exception as e:
-        log.error(f"Error importing articles: {str(e)}")
-        return success, errors + 1, skipped 
+        return {
+            'success': False,
+            'imported': 0,
+            'skipped': 0,
+            'errors': [f"Error reading file: {str(e)}"]
+        }
+
+def export_to_file(file_path: Union[str, Path], table: str) -> Dict[str, Any]:
+    """
+    Export a table from the database to a JSON or CSV file.
+    
+    Args:
+        file_path: Path to save the exported file (must end with .json or .csv)
+        table: Name of the table to export
+        
+    Returns:
+        Dict with export results
+        {
+            'success': bool,
+            'message': str,
+            'file_path': str,
+            'count': int
+        }
+    """
+    file_path = Path(file_path)
+    file_path.parent.mkdir(parents=True, exist_ok=True)
+    
+    try:
+        if table == db_tables['user']:
+            rcds = get_users()
+        elif table == db_tables['article']:
+            rcds = get_articles('all')
+        elif table == db_tables['subscriber']:
+            rcds = get_subscribers(state='all')
+        else:
+            return {
+                'success': False,
+                'message': "Unsupported table. Please use user, article, or subscriber",
+                'file_path': str(file_path.absolute()),
+                'count': 0
+            }
+        
+        if file_path.suffix.lower() == '.json':
+            with open(file_path, 'w', encoding='utf-8') as f:
+                json.dump(rcds, f, indent=2, ensure_ascii=False)
+        elif file_path.suffix.lower() == '.csv':
+            if rcds:
+                fieldnames = rcds[0].keys()
+                with open(file_path, 'w', encoding='utf-8', newline='') as f:
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(rcds)
+        else:
+            return {
+                'success': False,
+                'message': "Unsupported file format. Please use .json or .csv",
+                'file_path': str(file_path.absolute()),
+                'count': 0
+            }
+        
+        return {
+            'success': True,
+            'message': f"Successfully exported {len(rcds)} records to {file_path}",
+            'file_path': str(file_path.absolute()),
+            'count': len(rcds)
+        }
+    
+    except Exception as e:
+        return {
+            'success': False,
+            'message': f"Error exporting records: {str(e)}",
+            'file_path': str(file_path.absolute()),
+            'count': 0
+        }
+
+def get_total_records(table: str) -> int:
+    """
+    Get the total number of records in a table.
+    
+    Args:
+        table: Name of the table to query
+        
+    Returns:
+        int: Total number of records in the table
+    """
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT COUNT(*) FROM {table}")
+            result = cursor.fetchone()
+            return result[0] if result else 0
+    except sqlite3.Error as e:
+        log.error(f"Database error fetching total records: {str(e)}")
+        raise sqlite3.Error(f"Failed to fetch total records: {str(e)}")
     
 # Initialize the database when this module is imported
 init_db()
-rename_sub_id_to_user_id()
 
 if __name__ == "__main__":
     # Set up logging
