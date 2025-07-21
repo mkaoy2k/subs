@@ -107,23 +107,25 @@ streamlit run subs_ui.py
 
 | Variable Name | Description | Example | Required |
 |--------------|-------------|---------|----------|
-| `DB_SVR` | Database server type | `sqlite3` | Yes |
-| `DB_NAME` | Database file path | `data/users.db` | Yes |
-| `DB_ADMIN` | Admin email | `admin@example.com` | Yes |
-| `DB_ADMIN_PW` | Admin password | `your-secure-password` | Yes |
-| `OPS_SVR` | Operations server URL | `http://localhost:5000` | Yes |
-| `FT_SVR` | FamilyTreesPE server URL | `http://example.com` | Yes |
-| `MAIL_SERVER` | Mail server | `smtp.gmail.com` | Yes |
-| `MAIL_USERNAME` | Email account | `your-email@gmail.com` | Yes |
-| `MAIL_PASSWORD` | Email password or app password | `your-app-password` | Yes |
-| `MAIL_DEFAULT_SENDER` | Default sender | `your-email@gmail.com` | Yes |
 | `APP_NAME` | Application name | `FamilyTreesOps` | Yes |
-| `SECRET_KEY` | Application secret key | Random string | Yes |
-| `BASE_URL` | Application URL | `http://localhost:5000` | Yes |
-| `ARTICLE_WINDOW` | Article display window (days) | `7` | No |
-| `L10N` | Default language | `zh_TW` or `en_US` | No |
-| `LOGGING` | Logging level | `INFO` or `DEBUG` | No |
-| `OPS_MENU_FILE` | Menu configuration file | `ops_menu.json` | Yes |
+| `ARTICLE_WINDOW` | Article display window in days | `7` | No |
+| `BASE_URL` | Base URL of the application | `http://localhost:5566` | Yes |
+| `DB_ADMIN` | Database admin email | `admin@familytreesops.com` | Yes |
+| `DB_ADMIN_PW` | Database admin password | `your-db-admin-pw` | Yes |
+| `DB_NAME` | Database file path | `data/users.db` | Yes |
+| `DB_SVR` | Database server type | `sqlite3` | Yes |
+| `FT_SVR` | FamilyTreesPE server URL | `http://localhost:8001` | Yes |
+| `FT_SVR_PORT` | FamilyTreesPE server port | `8001` | Yes |
+| `LOGGING` | Logging level (DEBUG/INFO/WARNING/ERROR/CRITICAL) | `DEBUG` | No |
+| `MAIL_DEFAULT_SENDER` | Default sender email | `your-gmail-account@gmail.com` | Yes |
+| `MAIL_PASSWORD` | Gmail app password | `your-gmail-app-password` | Yes |
+| `MAIL_USERNAME` | Gmail account | `your-gmail-account@gmail.com` | Yes |
+| `OPS_SVR` | Operations server URL | `http://localhost:5566` | Yes |
+| `OPS_SVR_PORT` | Operations server port | `5566` | Yes |
+| `RELEASE` | Application release version | `2.0` | Yes |
+| `SECRET_KEY` | Application secret key | `your-secret-key` | Yes |
+| `TBL_ARTICLE` | Articles table name | `article` | Yes |
+| `TBL_USR` | Users table name | `user` | Yes |
 
 ## 🤝 Contributing
 
