@@ -722,7 +722,9 @@ def delete_subscriber(email):
 def get_articles(category, limit=None):
     """
     Retrieve a number (given by limit) of articles by category
-    or all articles if limit is None given by category.
+    or all articles if limit is None given by category in 
+    db_tables['article'] table and sorted by `updated_at` field
+    in descending order.
     The category can be `all` to retrieve all articles without 
     specific category.
     The articles must be approved by admin review.
@@ -734,7 +736,7 @@ def get_articles(category, limit=None):
     Returns:
         list: A list of article information dictionaries, or None if no articles found.
               Each dictionary contains all columns of the 
-              `article` table.
+              db_tables['article'] table.
     """
     if not category or category not in Article_Categories.values():
         log.warning(f"Invalid category '{category}' provided to get_articles. Must be one of: {', '.join(Article_Categories.values())}")
@@ -777,16 +779,18 @@ def get_articles(category, limit=None):
 def get_articles_byDays(category, byDays=7):
     """
     Retrieve a number (given by previous byDays from today) of 
-    articles, given by category, and sorted by id in ascending order
+    articles, given by category, and sorted by `updated_at` field
+    in descending order. 
     
     Args:
         category (str): Article category to filter by
         byDays (int, optional): Number of days to look back. Defaults to 7 days.
         
     Returns:
-        list: A list of article information dictionaries from the specified time period,
-              or None if no articles found. Each dictionary contains
-              all columns of the `article` table.
+        list: A list of article information dictionaries from 
+        the specified time period, or None if no articles found. 
+        Each dictionary contains all columns of the 
+        db_tables['article'] table.
     """
     if not category or category not in Article_Categories.values():
         log.warning(f"Invalid category '{category}' provided to get_articles_byDays. Must be one of: {', '.join(Article_Categories.keys())}")
@@ -804,7 +808,7 @@ def get_articles_byDays(category, byDays=7):
             WHERE is_censored = ?
             AND category = ? 
             AND updated_at >= ?
-            ORDER BY id ASC
+            ORDER BY updated_at DESC
         """, (Article_State['approved'], category, date_str))
         
         results = cursor.fetchall()

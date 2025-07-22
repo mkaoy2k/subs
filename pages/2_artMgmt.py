@@ -117,7 +117,6 @@ if not st.session_state.get('authenticated', False):
 with st.sidebar:
     show_admin_sidebar()
     
-    st.divider()
     st.subheader("Article Editor")
     if st.button("Open Article Editor"):
         if run_article_editor(dbm.dbn, dbm.db_tables['article']):
@@ -266,17 +265,16 @@ with st.container():
                     st.error(f"❌ Failed to delete article ID: {cursor_id}")
         
         # --- Review pending feedback --- from here
-        st.markdown("""---""")
         st.subheader("Review Pending Feedback")
         info3, info4 = st.columns([15,1])
         result = dbm.get_next_article(1, 
-                        dbm.Article_Categories[cat_key], 
+                        dbm.Article_Categories['feedback'], 
                         is_censored=dbm.Article_State['pending'])
         if result is None:
             st.info("No more articles to review")
         else:
             review_id, article = result
-            article['category'] = cat_key
+            article['category'] = dbm.Article_Categories[cat_key]
             display_article(article, info3)
         
             btn31, btn32 = st.columns([5, 5])
@@ -285,7 +283,7 @@ with st.container():
                 if st.button(f"Approved ID: {review_id} in category: {dbm.Article_Categories[cat_key]}"):
                     if dbm.review_article(review_id, 
                             dbm.Article_State['approved'],
-                            category=cat_key):
+                            category=dbm.Article_Categories[cat_key]):
                         # Send approval notification email to subscriber
                         subject = f"Ticket {review_id} Approved"
                         html = r"""
@@ -321,12 +319,13 @@ with st.container():
                                 html,
                                 to_emails
                                 ):
-                                log.info(f"Approval email sent to {to_emails} for Ticket ID {review_id}")
+                                log.info(f"Approval email sent to {to_emails} about Ticket ID {review_id}")
                                 st.success(f"✅ Approved feedback ID: {review_id} in category: {cat}")
                             else:
-                                log.error(f"Failed to send approval email for Ticket ID {review_id}")
-                                st.error(f"❌ Failed to send approval email for Ticket ID {review_id}")
+                                log.error(f"Failed to send approval email to {to_emails} about Ticket ID {review_id}")
+                                st.error(f"❌ Failed to send approval email to {to_emails} about Ticket ID {review_id}")
                         else:
+                            log.error(f"No user email found for Ticket ID {review_id}")
                             st.error(f"❌ No user email found for Ticket ID {review_id}")
                     else:
                         st.error(f"❌ Failed to approve feedback ID: {review_id} in category: {cat}")
@@ -334,13 +333,12 @@ with st.container():
             with btn32:
                 if st.button(f"Rejected ID: {review_id}"):
                     if dbm.review_article(review_id, dbm.Article_State['rejected'],
-                            category=cat):
+                            category=dbm.Article_Categories[cat_key]):
                         st.success(f"✅ Rejected feedback ID: {review_id} in category: {cat}")
                     else:
                         st.error(f"❌ Failed to reject feedback ID: {review_id} in category: {cat}")
         
         # --- Review Pending Contact --- from here
-        st.markdown("""---""")
         st.subheader("Review Pending Contact")
         info5, info6 = st.columns([15,1])
         result = dbm.get_next_article(1,
