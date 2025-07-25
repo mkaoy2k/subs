@@ -117,7 +117,7 @@ if not st.session_state.get('authenticated', False):
 with st.sidebar:
     show_admin_sidebar()
     
-    st.subheader("Article Editor")
+    st.markdown("<h3>Article Editor</h3>", unsafe_allow_html=True)
     if st.button("Open Article Editor"):
         if run_article_editor(dbm.dbn, dbm.db_tables['article']):
             st.success("Article editor launched in a separate window")
