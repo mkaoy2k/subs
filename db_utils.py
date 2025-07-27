@@ -22,8 +22,10 @@ Main Features:
 
 import sqlite3
 import os
-import datetime
-import json
+import re
+import secrets
+import time
+import smtplib
 import csv
 from datetime import datetime
 from typing import Dict, Any, List, Union, Optional, Tuple
@@ -1603,6 +1605,24 @@ def export_to_file(file_path: Union[str, Path], table: str) -> Dict[str, Any]:
             'file_path': str(file_path.absolute()),
             'count': 0
         }
+
+def generate_secure_token(length: int = 32) -> str:
+    """
+    Generate a secure random token for password reset or other authentication purposes.
+    
+    Args:
+        length (int): Length of the token in bytes. Default is 32 (256 bits).
+        
+    Returns:
+        str: A URL-safe base64-encoded random string
+        
+    Example:
+        >>> token = generate_secure_token()
+        >>> len(token) > 40  # Should be a long string
+        True
+    """
+    return secrets.token_urlsafe(length)
+
 
 def verify_reset_token(email: str, token: str) -> bool:
     """

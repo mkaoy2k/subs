@@ -17,15 +17,15 @@ Method 2: Using Flask Command
 flask --app ops_svr run -p 5555
 """
 
-from flask import Flask, request, redirect, render_template, flash, url_for, session, jsonify
+from flask import Flask, request, redirect, render_template, flash, url_for, session, jsonify, abort
 from flask_wtf.csrf import CSRFProtect, generate_csrf
 from flask_mail import Mail
 import os
-from dotenv import load_dotenv
-import db_utils as dbm
 import email_utils as eu
+import db_utils as dbm
 from funcUtils import load_menu, load_L10N, load_page_cat
 import logging
+from dotenv import load_dotenv
 
 # Global variables
 g_L10N = {}
@@ -225,7 +225,8 @@ def get_template_context():
         'motto': g_loc['HOME_HTML_MOTTO'],
         'ops_svr': os.getenv("OPS_SVR", "http://localhost:5566"),
         'current_lang': g_loc_key  # Use global variable instead of session
-    }    
+    }
+    
 @app.before_request
 def before_request():
     """Execute before each request"""
@@ -906,6 +907,61 @@ def main():
 
 # Initialize global variables
 init_globals()
+
+@app.route('/reset-password', methods=['GET', 'POST'])
+def reset_password():
+    """Handle password reset requests and form submission"""
+    if request.method == 'GET':
+        # Show the reset password form
+        token = request.args.get('token')
+        email = request.args.get('email')
+        
+        if not token or not email:
+            flash('Invalid password reset link', 'error')
+            return redirect(url_for('home'))
+            
+        # Verify the token
+        if not dbm.verify_reset_token(email, token):
+            flash('The password reset link is invalid or has expired.', 'error')
+            return redirect(url_for('home'))
+            
+        return render_template('reset_password.html', 
+                             email=email, 
+                             token=token,
+                             **get_template_context())
+    
+    elif request.method == 'POST':
+        # Process the password reset form
+        email = request.form.get('email')
+        token = request.form.get('token')
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        
+        # Validate input
+        if not all([email, token, password, confirm_password]):
+            flash('All fields are required', 'error')
+            return redirect(request.url)
+            
+        if password != confirm_password:
+            flash('Passwords do not match', 'error')
+            return redirect(request.url)
+            
+        if len(password) < 8:
+            flash('Password must be at least 8 characters long', 'error')
+            return redirect(request.url)
+        
+        # Verify the token again before allowing password reset
+        if not dbm.verify_reset_token(email, token):
+            flash('The password reset link is invalid or has expired.', 'error')
+            return redirect(url_for('home'))
+        
+        # Update the password
+        if dbm.update_user_password(email, password):
+            flash('Your password has been reset successfully. Please log in with your new password.', 'success')
+            return redirect(url_for('home'))
+        else:
+            flash('Failed to reset password. Please try again.', 'error')
+            return redirect(request.url)
 
 if __name__ == "__main__":
     main()

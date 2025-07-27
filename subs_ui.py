@@ -7,7 +7,8 @@ from difflib import context_diff
 import streamlit as st
 import sqlite3
 import db_utils as dbm
-import auth_utils
+import auth_utils as au
+import email_utils as eu
 import pandas as pd
 import os
 from dotenv import load_dotenv
@@ -18,9 +19,27 @@ from ops_dbMgmt import init_db_management, init_admin_features, get_table_struct
 from context_utils import init_context
 
 def show_login_page():
-    """Display the login page"""
+    """Display the login page with email and password fields.
+    
+    This function shows a login form with email and password fields,
+    and includes a 'Forgot Password' option that allows users to
+    reset their password if they've forgotten it.
+    
+    The function handles the following:
+    - User authentication
+    - Input validation
+    - Password reset flow initiation
+    - Error messaging
+    
+    Returns:
+        None: Renders the login UI components directly
+    """
     # Clear any existing content
     st.empty()
+    
+    # Initialize session state for forgot password if not exists
+    if 'show_forgot_password' not in st.session_state:
+        st.session_state.show_forgot_password = False
     
     # Set page title and header
     st.title(f"{os.getenv('APP_NAME', '')} {os.getenv('RELEASE', '')}")
@@ -34,21 +53,115 @@ def show_login_page():
             st.markdown("<h2 style='text-align: center;'>Admin Login</h2>", unsafe_allow_html=True)
             
             # Login form
-            with st.form("login_form"):
-                email = st.text_input("Email Address", key="login_email")
-                password = st.text_input("Password", type="password", key="login_password")
-                submit_button = st.form_submit_button("Login")
-                
-                if submit_button:
-                    if not email or not password:
-                        st.error("Please enter both email and password")
+            email = st.text_input("Email Address", key="login_email")
+            password = st.text_input("Password", type="password", key="login_password")
+            
+            # Login and Forgot Password buttons
+            col1, col2 = st.columns([2, 1])
+            with col1:
+                login_clicked = st.button("Login")
+            with col2:
+                forgot_clicked = st.button("Forgot Password?",
+                                           type="secondary",
+                                           icon="🔑")
+            
+            # Handle login
+            if login_clicked:
+                if not email or not password:
+                    st.error("Please enter both email and password")
+                else:
+                    if au.verify_admin(email, password):
+                        st.session_state.authenticated = True
+                        st.session_state.user_email = email
+                        st.success("Login successful!")
+                        st.rerun()
                     else:
-                        if auth_utils.verify_admin(email, password):
-                            st.session_state.authenticated = True
-                            st.session_state.user_email = email
-                            st.rerun()
+                        st.error("Invalid email or password")
+            
+            # Handle forgot password
+            if forgot_clicked:
+                st.session_state.show_forgot_password = True
+            
+            # Forgot password section
+            if st.session_state.show_forgot_password:
+                with st.expander("Reset Password", expanded=True):
+                    reset_email = st.text_input("Enter your email to reset password", 
+                                             key="reset_email")
+                    send_reset_clicked = st.button("Send Reset Link")
+                    if send_reset_clicked:
+                        if not reset_email or "@" not in reset_email:
+                            st.error("Please enter a valid email address")
                         else:
-                            st.error("Invalid email or password")
+                            try:
+                                # Generate a secure token
+                                token = dbm.generate_secure_token()
+                                
+                                # Create reset link
+                                base_url = os.getenv('BASE_URL', 'http://localhost:5000')
+                                reset_link = f"{base_url}/reset-password?token={token}&email={reset_email}"
+                                
+                                # Get app name
+                                app_name = os.getenv('APP_NAME', 'FamilyTreesOps')
+                                
+                                # Render HTML email template
+                                html = f"""
+                                <html>
+                                    <body>
+                                        <h2>Password Reset Request</h2>
+                                        <p>Hello,</p>
+                                        <p>You requested a password reset for your {app_name} account.</p>
+                                        <p>Please click the button below to reset your password:</p>
+                                        <p><a href="{reset_link}" style="background-color: #4CAF50; color: white; padding: 10px 20px; text-align: center; text-decoration: none; display: inline-block; border-radius: 5px;">Reset Password</a></p>
+                                        <p>Or copy and paste this link into your browser:<br>{reset_link}</p>
+                                        <p>This link will expire in 1 hour.</p>
+                                        <p>If you didn't request this, please ignore this email.</p>
+                                        <p>Thanks,<br>The {app_name} Team</p>
+                                    </body>
+                                </html>
+                                """
+                                
+                                # Plain text version
+                                text = f"""Hello,
+
+You requested a password reset for your {app_name} account. 
+Please click the following link to reset your password:
+{reset_link}
+
+This link will expire in 1 hour.
+
+If you didn't request this, please ignore this email or contact support if you have any concerns.
+
+Thanks,
+The {app_name} Team
+"""
+                                
+                                # Initialize EmailPublisher and send email
+                                try:
+                                    publisher = eu.EmailPublisher(
+                                        email_sender=os.getenv('MAIL_USERNAME', ''),
+                                        email_password=os.getenv('MAIL_PASSWORD', '')
+                                    )
+                                    
+                                    if publisher.publish_email(
+                                        subject=f"{app_name} - Password Reset Request",
+                                        text=text,
+                                        html=html,
+                                        recipients=[reset_email]
+                                    ):
+                                        # Store the reset token in the database
+                                        if dbm.store_password_reset_token(reset_email, token):
+                                            st.success(f"Password reset link sent to {reset_email}")
+                                            st.session_state.show_forgot_password = False
+                                        else:
+                                            st.error("Failed to process your request. Please try again later.")
+                                    else:
+                                        st.error("Failed to send password reset email. Please try again later.")
+                                except Exception as e:
+                                    st.error(f"An error occurred while sending the email: {str(e)}")
+                            
+                            except Exception as e:
+                                st.error(f"An error occurred: {str(e)}")
+            
 
 def show_admin_sidebar():
     """Display the admin sidebar"""
@@ -86,7 +199,7 @@ def show_admin_sidebar():
                     elif len(new_password) < 8:
                         st.error("Password must be at least 8 characters long")
                     else:
-                        success, message = auth_utils.create_admin_user(email, new_password)
+                        success, message = au.create_admin_user(email, new_password)
                         if success:
                             st.success(message)
                         else:

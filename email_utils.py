@@ -148,7 +148,8 @@ def generate_verification_token():
 
 def send_verification_email(mail, email, token, is_subscribe=True):
     """
-    Send a verification email for subscription or unsubscription with retry logic
+    Send a verification email for subscription or unsubscription 
+    with retry logic via Flask-Mail
     
     Args:
         mail: Flask-Mail instance
@@ -218,7 +219,7 @@ def send_verification_email(mail, email, token, is_subscribe=True):
 
 def send_email(mail, emails, subject, html):
     """
-    Send email to the specified email address
+    Send email to the specified email addresses via Flask-Mail
     
     Args:
         mail: Flask-Mail instance
@@ -262,7 +263,7 @@ def send_email(mail, emails, subject, html):
     
 def send_newsletter(mail, emails, blob):
     """
-    Send newsletter to the specified email addresses
+    Send newsletter to the specified email addresses via Flask-Mail
     
     Args:
         mail: Flask-Mail instance
@@ -364,7 +365,7 @@ def send_newsletter(mail, emails, blob):
     
 def _send_mail(mail, msg, max_retries=3):
     """
-    Helper function to send email with retry logic
+    Helper function to send email with retry logic via Flask-Mail
     
     Args:
         mail: Flask-Mail instance
