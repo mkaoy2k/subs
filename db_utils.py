@@ -76,9 +76,15 @@ Article_Categories = {
     }
 
 def get_db_connection():
-    """Create and return a database connection"""
-    conn = sqlite3.connect(dbn)
+    """
+    Create and return a new database connection.
+    Each thread gets its own connection to ensure thread safety.
+    """
+    # Set a timeout to handle cases where the database is locked
+    conn = sqlite3.connect(dbn, timeout=30.0)
     conn.row_factory = sqlite3.Row
+    # Enable foreign key constraints
+    conn.execute("PRAGMA foreign_keys = ON")
     return conn
 
 def add_user_id_column():
@@ -121,7 +127,9 @@ def init_db():
             token TEXT,
             is_admin INTEGER DEFAULT 0,
             password_hash TEXT,
-            salt TEXT
+            salt TEXT,
+            reset_token TEXT,
+            reset_token_expires TEXT
         )"""
         sql_stmt = f"{cmd} {args}"
         conn.execute(sql_stmt)
@@ -1595,6 +1603,119 @@ def export_to_file(file_path: Union[str, Path], table: str) -> Dict[str, Any]:
             'file_path': str(file_path.absolute()),
             'count': 0
         }
+
+def verify_reset_token(email: str, token: str) -> bool:
+    """
+    Verify if a reset token is valid and not expired.
+    
+    Args:
+        email (str): User's email address
+        token (str): The reset token to verify
+        
+    Returns:
+        bool: True if the token is valid and not expired, False otherwise
+    """
+    try:
+        from datetime import datetime
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""
+                SELECT reset_token, reset_token_expires 
+                FROM {db_tables['user']} 
+                WHERE email = ?
+                """,
+                (email,)
+            )
+            result = cursor.fetchone()
+            
+            if not result or not result['reset_token'] or not result['reset_token_expires']:
+                return False
+                
+            token_matches = result['reset_token'] == token
+            is_expired = datetime.utcnow() > datetime.fromisoformat(result['reset_token_expires'])
+            
+            return token_matches and not is_expired
+            
+    except Exception as e:
+        log.error(f"Error verifying reset token: {str(e)}")
+        return False
+
+def update_user_password(email: str, new_password: str) -> bool:
+    """
+    Update a user's password.
+    
+    Args:
+        email (str): User's email address
+        new_password (str): The new password (plain text)
+        
+    Returns:
+        bool: True if the password was updated successfully, False otherwise
+    """
+    try:
+        # Import auth_utils here to avoid circular imports
+        import auth_utils
+        
+        # Hash the new password
+        hashed_password, salt = auth_utils.hash_password(new_password)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""
+                UPDATE {db_tables['user']} 
+                SET password_hash = ?,
+                    salt = ?,
+                    reset_token = NULL,
+                    reset_token_expires = NULL,
+                    updated_at = datetime('now')
+                WHERE email = ?
+                """,
+                (hashed_password, salt, email)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+            
+    except Exception as e:
+        log.error(f"Error updating user password: {str(e)}")
+        return False
+
+def store_password_reset_token(email: str, token: str, expires_in_hours: int = 1) -> bool:
+    """
+    Store a password reset token for a user.
+    
+    Args:
+        email (str): User's email address
+        token (str): The reset token to store
+        expires_in_hours (int): Number of hours until the token expires (default: 1)
+        
+    Returns:
+        bool: True if the token was stored successfully, False otherwise
+    """
+    try:
+        # Calculate expiration time
+        from datetime import datetime, timedelta
+        expires_at = datetime.utcnow() + timedelta(hours=expires_in_hours)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            # Update the user's reset token and expiration time
+            cursor.execute(
+                f"""
+                UPDATE {db_tables['user']} 
+                SET reset_token = ?, 
+                    reset_token_expires = ?,
+                    updated_at = datetime('now')
+                WHERE email = ?
+                """,
+                (token, expires_at.isoformat(), email)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+    except Exception as e:
+        log.error(f"Error storing password reset token: {str(e)}")
+        return False
 
 def get_total_records(table: str) -> int:
     """
