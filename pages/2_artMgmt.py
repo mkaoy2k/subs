@@ -252,9 +252,9 @@ with st.container():
                     article_id, article = result
                     display_article(article, info1)
                     st.session_state.article_id = article_id
-                    st.success(f"Retrieved '{article_state}' feedback with ID: {article_id}")
+                    st.success(f"Retrieved '{cat_key}':'{article_state}' article after ID: {cursor_id}")
                 else:
-                    st.error(f"No '{article_state}' feedback found with ID: {cursor_id}")
+                    st.error(f"No '{cat_key}':'{article_state}' article found after ID: {cursor_id}")
         # Show delete button
         with st.expander("Danger Zone", expanded=False):
             st.warning("⚠️ This action cannot be undone!")

@@ -289,7 +289,12 @@ def home():
         'release': os.getenv("RELEASE", ""),
         'header': g_loc['HOME_HTML_H1'],
         't1': t1,
-        't1_articles': g_home.get("News", []),
+        't1_articles': g_home.get("News") or [
+            {
+                'title': g_loc.get('HOME_HTML_NO_NEWS_TITLE', 'No News Available'),
+                'content': g_loc.get('HOME_HTML_NO_NEWS_CONTENT', 'Check back later for updates.')
+            }
+        ],
         'author_label': g_loc['HTML_AUTHOR_LABEL'],
         'source_label': g_loc['HTML_SOURCE_LABEL'],
         't2': t2,
@@ -301,7 +306,12 @@ def home():
         't2_src_url': story_data['t2_src_url'],
         't2_source': story_data['t2_source'],
         't3': t3,
-        't3_article': g_home.get("Events", []),
+        't3_article': g_home.get("Events") or [
+            {
+                'title': g_loc.get('HOME_HTML_NO_EVENT_TITLE', 'No Events Available'),
+                'content': g_loc.get('HOME_HTML_NO_EVENT_CONTENT', 'Check back later for updates.')
+            }
+        ],
         't4_greeting': g_loc['HOME_HTML_T4_GREETING'],
         't4_team': g_loc['HOME_HTML_T4_TEAM'],
         'ft_url': ft_svr,
