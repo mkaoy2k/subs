@@ -21,18 +21,18 @@ class ArticleForm(FlaskForm):
             # Get the localization dictionary
             current_loc = g_L10N.get(lang, g_L10N.get('US', {}))
             # Get the submit text, fallback to default if not found
-            submit_text = current_loc.get('FEEDBACK_SUBMIT', 'Submit')
+            submit_text = current_loc.get('SUBMIT', 'Submit')
         
             # Store the current localization dictionary
             self.current_loc = {
-                'title': current_loc.get('FEEDBACK_TITLE', 'Title'),
-                'content': current_loc.get('FEEDBACK_CONTENT', 'Content'),
-                'author': current_loc.get('FEEDBACK_AUTHOR', 'Author'),
-                'source': current_loc.get('FEEDBACK_SOURCE', 'Source'),
-                'language': current_loc.get('FEEDBACK_LANGUAGE', 'Language'),
-                'source_url': current_loc.get('FEEDBACK_SOURCE_URL', 'Source URL'),
-                'image_url': current_loc.get('FEEDBACK_IMAGE_URL', 'Image URL'),
-                'email': current_loc.get('FEEDBACK_EMAIL', 'Email'),
+                'title': current_loc.get('TITLE', 'Title'),
+                'content': current_loc.get('CONTENT', 'Content'),
+                'author': current_loc.get('AUTHOR', 'Author'),
+                'source': current_loc.get('SOURCE', 'Source'),
+                'language': current_loc.get('LANGUAGE', 'Language'),
+                'source_url': current_loc.get('SOURCE_URL', 'Source URL'),
+                'image_url': current_loc.get('IMAGE_URL', 'Image URL'),
+                'email': current_loc.get('EMAIL', 'Email'),
                 'submit': submit_text
             }
         

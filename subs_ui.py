@@ -1,22 +1,29 @@
 """
-Admin UI Module
+Admin UI Module for Management in users, subscribers, articles, and settings.
 
 This module provides the complete admin interface for the application.
 """
-from difflib import context_diff
 import streamlit as st
 import sqlite3
 import db_utils as dbm
 import auth_utils as au
+import context_utils as cu
+import funcUtils as fu
 import email_utils as eu
 import pandas as pd
 import os
+import logging
 from dotenv import load_dotenv
 load_dotenv()
 
+# Configure logger for this module
+log = logging.getLogger(__name__)
+# Set log level from environment variable or default to WARNING
+log_level = os.getenv('LOGGING', 'WARNING').upper()
+log.setLevel(getattr(logging, log_level, logging.WARNING))
+
 # Import database operations
 from ops_dbMgmt import init_db_management, init_admin_features, get_table_structure, drop_table
-from context_utils import init_context
 
 def show_login_page():
     """Display the login page with email and password fields.
@@ -42,41 +49,45 @@ def show_login_page():
         st.session_state.show_forgot_password = False
     
     # Set page title and header
-    st.title(f"{os.getenv('APP_NAME', '')} {os.getenv('RELEASE', '')}")
-    st.markdown("---")
+    st.header(f"{os.getenv('APP_NAME', '')} {os.getenv('RELEASE', '')}")
     
     # Center the login form
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
         with st.container():
-            st.markdown("<h2 style='text-align: center;'>Admin Login</h2>", unsafe_allow_html=True)
+            st.subheader(f"{UI_TEXTS['ADMIN']} {UI_TEXTS['LOGIN']}")
             
             # Login form
-            email = st.text_input("Email Address", key="login_email")
-            password = st.text_input("Password", type="password", key="login_password")
+            email = st.text_input(UI_TEXTS['EMAIL'], key="login_email")
+            password = st.text_input(UI_TEXTS['PASSWORD'], type="password", key="login_password")
             
             # Login and Forgot Password buttons
             col1, col2 = st.columns([2, 1])
             with col1:
-                login_clicked = st.button("Login")
+                login_clicked = st.button(UI_TEXTS['LOGIN'])
             with col2:
-                forgot_clicked = st.button("Forgot Password?",
+                forgot_clicked = st.button(UI_TEXTS['FORGOT_PASSWORD'],
                                            type="secondary",
                                            icon="🔑")
             
             # Handle login
             if login_clicked:
                 if not email or not password:
-                    st.error("Please enter both email and password")
+                    msg = f"️❌ {fu.get_function_name()}: {UI_TEXTS['EMAIL']} {UI_TEXTS['PASSWORD']} {UI_TEXTS['REQUIRED']}"
+                    log.debug(msg)
+                    st.error(msg)
                 else:
                     if au.verify_admin(email, password):
                         st.session_state.authenticated = True
                         st.session_state.user_email = email
-                        st.success("Login successful!")
+                        msg = f"✅ {UI_TEXTS['LOGIN']} {UI_TEXTS['SUCCEEDED']}!"
+                        log.debug(msg)
                         st.rerun()
                     else:
-                        st.error("Invalid email or password")
+                        msg = f"️❌ {fu.get_function_name()}: {UI_TEXTS['EMAIL_INVALID']}"
+                        log.debug(msg)
+                        st.error(msg)
             
             # Handle forgot password
             if forgot_clicked:
@@ -84,13 +95,15 @@ def show_login_page():
             
             # Forgot password section
             if st.session_state.show_forgot_password:
-                with st.expander("Reset Password", expanded=True):
-                    reset_email = st.text_input("Enter your email to reset password", 
+                with st.expander(f"{UI_TEXTS['RESET']} {UI_TEXTS['PASSWORD']}", expanded=True):
+                    reset_email = st.text_input(f"{UI_TEXTS['EMAIL']}:", 
                                              key="reset_email")
-                    send_reset_clicked = st.button("Send Reset Link")
+                    send_reset_clicked = st.button(f"{UI_TEXTS['EMAIL_SEND_RESET_LINK']}")
                     if send_reset_clicked:
                         if not reset_email or "@" not in reset_email:
-                            st.error("Please enter a valid email address")
+                            msg = f"️❌ {fu.get_function_name()}: {UI_TEXTS['EMAIL_INVALID']}"
+                            log.debug(msg)
+                            st.error(msg)
                         else:
                             try:
                                 # Generate a secure token
@@ -150,23 +163,38 @@ The {app_name} Team
                                     ):
                                         # Store the reset token in the database
                                         if dbm.store_password_reset_token(reset_email, token):
-                                            st.success(f"Password reset link sent to {reset_email}")
+                                            st.success(f"✅ Password reset link sent to {reset_email}")
                                             st.session_state.show_forgot_password = False
                                         else:
-                                            st.error("Failed to process your request. Please try again later.")
+                                            st.error(f"️❌ {fu.get_function_name()}: Failed to process your request. Please try again later.")
                                     else:
-                                        st.error("Failed to send password reset email. Please try again later.")
+                                        st.error(f"️❌ {fu.get_function_name()}: Failed to send password reset email. Please try again later.")
                                 except Exception as e:
-                                    st.error(f"An error occurred while sending the email: {str(e)}")
+                                    st.error(f"️❌ {fu.get_function_name()}: An error occurred while sending the email: {str(e)}")
                             
                             except Exception as e:
-                                st.error(f"An error occurred: {str(e)}")
-            
+                                st.error(f"️❌ {fu.get_function_name()}: An error occurred: {str(e)}")
+
+def format_timestamp(ts):
+    """Format timestamps for display"""
+    if not ts:
+        return "Never"
+    try:
+        # Try parsing as ISO format first
+        from datetime import datetime
+        if 'T' in str(ts):
+            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+        else:
+            # Try parsing as space-separated format
+            dt = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
+        return dt.strftime('%Y-%m-%d %H:%M:%S')
+    except (ValueError, TypeError):
+        return str(ts)
 
 def show_admin_sidebar():
     """Display the admin sidebar"""
     with st.sidebar:
-        st.title("Admin Sidebar")
+        st.header(f"{UI_TEXTS['ADMIN']} {UI_TEXTS['SIDEBAR']}")
         
         # Show current user info
         if 'user_email' in st.session_state and st.session_state.user_email:
@@ -178,7 +206,7 @@ def show_admin_sidebar():
             )
         
         # Sidebar - Admin User Management --- from here
-        st.subheader("Admin User Management")
+        st.subheader(f"{UI_TEXTS['ADMIN']} {UI_TEXTS['USER']} {UI_TEXTS['MANAGEMENT']}")
         with st.expander("Create/Update Admin User", expanded=False):
             with st.form("admin_user_form"):
                 st.subheader("Admin User")
@@ -191,63 +219,47 @@ def show_admin_sidebar():
                 
                 if st.form_submit_button("Save Admin User"):
                     if not email or "@" not in email:
-                        st.error("Please enter a valid email address")
+                        st.error(f"️❌ {fu.get_function_name()}: {UI_TEXTS['EMAIL_INVALID']}")
                     elif not new_password:
-                        st.error("Please enter a password")
+                        st.error(f"️❌ {fu.get_function_name()}: {UI_TEXTS['PASSWORD']} {UI_TEXTS['REQUIRED']}")
                     elif new_password != confirm_password:
-                        st.error("Passwords do not match")
+                        st.error(f"️❌ {fu.get_function_name()}: {UI_TEXTS['PASSWORD']} {UI_TEXTS['NOT_MATCH']}")
                     elif len(new_password) < 8:
-                        st.error("Password must be at least 8 characters long")
+                        st.error(f"️❌ {fu.get_function_name()}: {UI_TEXTS['PASSWORD']} {UI_TEXTS['AT_LEAST_8_CHARS']}")
                     else:
-                        success, message = au.create_admin_user(email, new_password)
-                        if success:
-                            st.success(message)
+                        user_id = au.create_admin_user(email, new_password)
+                        if user_id:
+                            st.success(f"✅ {UI_TEXTS['CREATE']} {UI_TEXTS['ADMIN']} {UI_TEXTS['USER']} {UI_TEXTS['SUCCEEDED']}!")
                         else:
-                            st.error(message)
+                            st.error(f"️❌ {fu.get_function_name()}: {UI_TEXTS['CREATE']} {UI_TEXTS['ADMIN']} {UI_TEXTS['USER']} {UI_TEXTS['FAILED']}!")
             
         # Logout button at the bottom
-        if st.sidebar.button("Logout", type="primary", use_container_width=True):
+        if st.sidebar.button(f"{UI_TEXTS['LOGOUT']}", type="primary", use_container_width=True):
             st.session_state.authenticated = False
             st.session_state.user_email = None
             st.rerun()
 
         # Display current admin users
-        st.subheader("Current Admin Users")
+        st.subheader(f"{UI_TEXTS['CURRENT']} {UI_TEXTS['ADMIN']} {UI_TEXTS['USER']}")
         try:
             with dbm.get_db_connection() as conn:
                 cursor = conn.cursor()
-                cursor.execute("""
+                cursor.execute(f"""
                         SELECT id, email, created_at, updated_at 
                         FROM user 
-                        WHERE is_admin = 1
+                        WHERE is_admin = {dbm.User_State['p_admin']} or is_admin = {dbm.User_State['f_admin']}
                         ORDER BY email
                     """)
                 admins = cursor.fetchall()
                 
                 if admins:
                     admin_list = []
-                    for id, email, created, updated in admins:
-                        # Format timestamps for display
-                        def format_timestamp(ts):
-                            if not ts:
-                                return "Never"
-                            try:
-                                # Try parsing as ISO format first
-                                from datetime import datetime
-                                if 'T' in str(ts):
-                                    dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
-                                else:
-                                    # Try parsing as space-separated format
-                                    dt = datetime.strptime(ts, '%Y-%m-%d %H:%M:%S')
-                                return dt.strftime('%Y-%m-%d %H:%M:%S')
-                            except (ValueError, TypeError):
-                                return str(ts)
-                        
+                    for id, email, created_at, updated_at in admins:
                         admin_list.append({
                             "ID": id,
                             "Email": email, 
-                            "Created": format_timestamp(created), 
-                            "Last Updated": format_timestamp(updated)
+                            "Created": format_timestamp(created_at), 
+                            "Last Updated": format_timestamp(updated_at)
                         })
                     # Convert to DataFrame to handle index properly
                     df = pd.DataFrame(admin_list)
@@ -257,30 +269,34 @@ def show_admin_sidebar():
                         hide_index=True  # Explicitly hide the index
                     )  
                 else:
-                    st.info(f"No admin users found")
+                    st.info(f"ℹ️ {fu.get_function_name()}: No admin users found")
             
         except sqlite3.Error as e:
-            st.error(f"Error fetching admin users: {e}")
-    
+            st.error(f"️❌ {fu.get_function_name()}: Error fetching admin users: {e}")
+
 def show_main_content():
     """Display the main content area"""
+    global UI_TEXTS
     
-    st.title("Admin Page")
+    st.header(f"{UI_TEXTS['HOME_HTML_H1']} {UI_TEXTS['ADMIN']} {UI_TEXTS['PAGE']}")
     
     # Show database tables
-    st.subheader("Database Tables")
+    st.subheader(f"{UI_TEXTS['DATABASE']} {UI_TEXTS['TABLE']}")
     tables = init_db_management()
     
     if not tables:
-        st.info("No tables found in the database.")
+        st.info(f"ℹ️ {fu.get_function_name()}: No tables found in the database.")
         return
-    
-    # Display tables in a select box
-    selected_table = st.selectbox("Select a table", tables)
+    col1, col2 = st.columns([1, 5])
+    with col1:
+        # Display tables in a select box
+        selected_table = st.selectbox(f"{UI_TEXTS['SELECT']} {UI_TEXTS['TABLE']}", tables)
+    with col2:
+        st.write("\n")
     
     if selected_table:
         # Show table structure
-        st.subheader(f"Table Structure: {selected_table}")
+        st.markdown(f"#### {UI_TEXTS['TABLE']} {selected_table} {UI_TEXTS['STRUCTURE']}")
         columns = get_table_structure(selected_table)
         
         if columns:
@@ -298,9 +314,12 @@ def show_main_content():
             st.table(column_data)
             
             # Add column form
-            with st.expander("Add Column"):
+            st.markdown(f"#### {UI_TEXTS['TABLE']} {selected_table} {UI_TEXTS['ADD']} {UI_TEXTS['COLUMN']}")
+            with st.expander("", expanded=False):
+                st.markdown(f"#### {UI_TEXTS['DANGER_ZONE']}")
+                st.warning(f"⚠️ {UI_TEXTS['CANNOT_BE_UNDONE']}")
                 with st.form("add_column_form"):
-                    new_col_name = st.text_input("Column Name")
+                    new_col_name = st.text_input(f"{UI_TEXTS['COLUMN']} {UI_TEXTS['NAME']}")
                     col_type = st.selectbox(
                         "Data Type",
                         ["INTEGER", "TEXT", "REAL", "BLOB", "NUMERIC"]
@@ -308,7 +327,7 @@ def show_main_content():
                     is_nullable = st.checkbox("Allow NULL", value=True)
                     default_value = st.text_input("Default Value", "")
                     
-                    if st.form_submit_button("Add Column"):
+                    if st.form_submit_button(f"{UI_TEXTS['ADD']} {UI_TEXTS['COLUMN']}", type="primary"):
                         if new_col_name:
                             try:
                                 # Build the ALTER TABLE statement
@@ -321,85 +340,57 @@ def show_main_content():
                                 with dbm.get_db_connection() as conn:
                                     conn.execute(stmt)
                                     conn.commit()
-                                st.success(f"Added column '{new_col_name}' to table '{selected_table}'")
+                                msg = f"✅ {UI_TEXTS['ADD']} {UI_TEXTS['COLUMN']}: '{new_col_name}' {UI_TEXTS['SUCCEEDED']}"
+                                log.debug(msg)
                                 st.rerun()
                             except sqlite3.Error as e:
-                                st.error(f"Error adding column: {e}")
+                                msg = f"️❌ {fu.get_function_name()}: {UI_TEXTS['ADD']} {UI_TEXTS['COLUMN']} {UI_TEXTS['FAILED']}: {e}"
+                                log.debug(msg)
+                                st.error(msg)
                         else:
-                            st.error("Please enter a column name")
+                            msg = f"️❌ {fu.get_function_name()}: {UI_TEXTS['COLUMN']} {UI_TEXTS['NAME']} {UI_TEXTS['REQUIRED']}"
+                            log.debug(msg)
+                            st.error(msg)
             
             # Drop column form
-            with st.expander("Remove Column"):
+            st.markdown(f"#### {UI_TEXTS['TABLE']} {selected_table} {UI_TEXTS['REMOVE']} {UI_TEXTS['COLUMN']}")
+            with st.expander("", expanded=False):
+                st.markdown(f"#### {UI_TEXTS['DANGER_ZONE']}")
+                st.warning(f"⚠️ {UI_TEXTS['CANNOT_BE_UNDONE']}")
                 if len(columns) > 1:  # Don't allow dropping the last column
                     with st.form("remove_column_form"):
-                        col_to_remove = st.selectbox(
-                            "Select column to remove",
-                            [col[1] for col in columns if col[1] != "id"]  # Don't allow dropping id column
-                        )
-                        
-                        if st.form_submit_button("Remove Column"):
-                            if remove_column_if_exists(selected_table, col_to_remove):
-                                st.success(f"Removed column '{col_to_remove}' from table '{selected_table}'")
-                                st.rerun()
-                            else:
-                                st.error(f"Failed to remove column '{col_to_remove}'")
+                        col1, col2 = st.columns([1, 5])
+                        with col1:
+                            col_to_remove = st.selectbox(
+                                f"{UI_TEXTS['SELECT']} {UI_TEXTS['COLUMN']}:",
+                                [col[1] for col in columns if col[1] != "id"]  # Don't allow dropping id column
+                            )
+                        with col2:
+                            st.write("\n")
+                            if st.form_submit_button(f"{UI_TEXTS['REMOVE']} {UI_TEXTS['COLUMN']}", type="primary"):
+                                if remove_column_if_exists(selected_table, col_to_remove):
+                                    msg = f"✅ {UI_TEXTS['REMOVE']} {UI_TEXTS['COLUMN']}: {col_to_remove} {UI_TEXTS['SUCCEEDED']}"
+                                    log.debug(msg)
+                                    st.rerun()
+                                else:
+                                    msg = f"️❌ {fu.get_function_name()}: {UI_TEXTS['REMOVE']} {UI_TEXTS['COLUMN']}: {col_to_remove} {UI_TEXTS['FAILED']}"
+                                    log.debug(msg)
+                                    st.error(msg)
                 else:
-                    st.warning("Cannot remove the last column from a table")
+                    msg = f"⚠️ {UI_TEXTS['CANNOT_REMOVE_LAST_COLUMN']}"
+                    log.debug(msg)
+                    st.warning(msg)
             
             # Drop table button
-            with st.expander("Danger Zone", expanded=False):
-                st.warning("⚠️ This action cannot be undone!")
-                if st.button(f"Drop Table '{selected_table}'", type="primary"):
+            st.markdown(f"#### {UI_TEXTS['TABLE']} {selected_table} {UI_TEXTS['DROP']} {UI_TEXTS['TABLE']}")
+            with st.expander("", expanded=False):
+                st.markdown(f"#### {UI_TEXTS['DANGER_ZONE']}")
+                st.warning(f"⚠️ {UI_TEXTS['CANNOT_BE_UNDONE']}")
+                if st.button(f"{UI_TEXTS['DROP']} {UI_TEXTS['TABLE']}: '{selected_table}'", type="primary"):
                     if drop_table(selected_table):
-                        st.success(f"✅ Dropped table '{selected_table}'")
-                        st.rerun()
+                        st.success(f"✅ {UI_TEXTS['DROP']} {UI_TEXTS['TABLE']}: {selected_table} {UI_TEXTS['SUCCEEDED']}")
                     else:
-                        st.error(f"❌ Failed to drop table '{selected_table}'")
-
-def init_session_state():
-    """Initialize session state variables"""
-    if 'authenticated' not in st.session_state:
-        st.session_state.authenticated = False
-    if 'user_email' not in st.session_state:
-        st.session_state.user_email = None
-
-def remove_column_if_exists(table_name, column_name):
-    """Remove a column from a table if it exists"""
-    try:
-        with dbm.get_db_connection() as conn:
-            # SQLite doesn't support DROP COLUMN directly, so we need to:
-            # 1. Create a new table without the column
-            # 2. Copy data from old table to new table
-            # 3. Drop old table
-            # 4. Rename new table to old table name
-            
-            # Get table info
-            cursor = conn.cursor()
-            cursor.execute(f"PRAGMA table_info({table_name})")
-            columns = [col[1] for col in cursor.fetchall() if col[1] != column_name]
-            
-            if not columns:
-                return False  # Can't remove the last column
-                
-            # Create new table
-            new_table = f"{table_name}_new"
-            cursor.execute(f"CREATE TABLE {new_table} AS SELECT {', '.join(columns)} FROM {table_name} WHERE 1=0")
-            
-            # Copy data
-            cursor.execute(f"INSERT INTO {new_table} SELECT {', '.join(columns)} FROM {table_name}")
-            
-            # Drop old table
-            cursor.execute(f"DROP TABLE {table_name}")
-            
-            # Rename new table
-            cursor.execute(f"ALTER TABLE {new_table} RENAME TO {table_name}")
-            
-            conn.commit()
-            return True
-            
-    except sqlite3.Error as e:
-        st.error(f"Error removing column: {e}")
-        return False
+                        st.error(f"️❌ {fu.get_function_name()}: {UI_TEXTS['DROP']} {UI_TEXTS['TABLE']}: {selected_table} {UI_TEXTS['FAILED']}")
 
 # Main application
 def main():
@@ -412,12 +403,9 @@ def main():
         initial_sidebar_state="expanded"
     )
     
-    # Initialize session state
-    init_session_state()
-    
     # Initialize admin features (adds necessary columns to user table)
     if not init_admin_features():
-        st.error("Failed to initialize admin features")
+        st.error(f"️❌ {fu.get_function_name()}: Failed to initialize admin features")
         st.stop()
     
     # Check authentication
@@ -427,12 +415,13 @@ def main():
         if not st.session_state.get('authenticated', False):
             show_login_page()
         else:
-            # 初始化或獲取 context
-            if 'app_context' not in st.session_state:
-                st.session_state.app_context = init_context()
             show_admin_sidebar()
             # Main content
             show_main_content()
 
+# Initialize session state
+cu.init_session_state()
+UI_TEXTS = st.session_state.ui_context[st.session_state.app_context.get('language', "US")]
+ 
 if __name__ == "__main__":
     main()

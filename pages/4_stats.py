@@ -5,11 +5,13 @@ This is the main dashboard page that appears after successful login.
 It provides an overview and quick access to various admin functions.
 """
 import streamlit as st
-from subs_ui import show_admin_sidebar, init_session_state
+from subs_ui import show_admin_sidebar
+import context_utils as cu
 import db_utils as dbm
 
 # Initialize session state
-init_session_state()
+cu.init_session_state()
+UI_TEXTS = st.session_state.ui_context[st.session_state.app_context.get('language', "US")]
 
 # Check authentication
 if not st.session_state.get('authenticated', False):
@@ -19,29 +21,29 @@ if not st.session_state.get('authenticated', False):
 show_admin_sidebar()
 
 # Main content
-st.title("Statistics")
+st.title(UI_TEXTS["STATISTICS"])
 st.markdown("---")
 
 # Dashboard content
 col1, col2 = st.columns(2)
 
 with col1:
-    st.subheader("Quick Actions")
-    if st.button("User Management"):
+    st.subheader(UI_TEXTS["NAVIGATION"])
+    if st.button(f"{UI_TEXTS['OPEN']} {UI_TEXTS['USER']} {UI_TEXTS['MANAGEMENT']} {UI_TEXTS['PAGE']}"):
         st.switch_page("pages/1_usrMgmt.py")
-    if st.button("Article Management"):
+    if st.button(f"{UI_TEXTS['OPEN']} {UI_TEXTS['ARTICLE']} {UI_TEXTS['MANAGEMENT']} {UI_TEXTS['PAGE']}"):
         st.switch_page("pages/2_artMgmt.py")
-    if st.button("Publication Management"):
+    if st.button(f"{UI_TEXTS['OPEN']} {UI_TEXTS['PUBLICATION']} {UI_TEXTS['MANAGEMENT']} {UI_TEXTS['PAGE']}"):
         st.switch_page("pages/3_pubMgmt.py")
     
 with col2:
-    st.subheader("Configuration")
-    if st.button("Settings"):
+    st.subheader(UI_TEXTS["SETTINGS"])
+    if st.button(f"{UI_TEXTS['OPEN']} {UI_TEXTS['SETTINGS']} {UI_TEXTS['PAGE']}"):
         st.switch_page("pages/5_settings.py")
 
 # Add some metrics or statistics
 st.markdown("---")
-st.subheader("Database Overview")
+st.subheader(f"{UI_TEXTS['DATABASE']} {UI_TEXTS['OVERVIEW']}")
 
 # Example metrics
 try:
@@ -77,13 +79,13 @@ try:
     # Display metrics
     col1, col2  = st.columns(2)
     with col2:
-        st.metric("Total Users", user_count)
-        st.metric("Admin Users", admin_count)
-        st.metric("Total Subscribers", subscription_count)
+        st.metric(f"{UI_TEXTS['TOTAL']} {UI_TEXTS['USERS']}", user_count)
+        st.metric(f"{UI_TEXTS['TOTAL']} {UI_TEXTS['ADMIN']} {UI_TEXTS['USERS']}", admin_count)
+        st.metric(f"{UI_TEXTS['TOTAL']} {UI_TEXTS['SUBSCRIBERS']}", subscription_count)
     with col1:
-        st.metric("Database Tables", table_count)
-        st.metric("Total Articles", article_count)
-        st.metric("Total Categories", category_count)
+        st.metric(f"{UI_TEXTS['DATABASE']} {UI_TEXTS['TABLES']}", table_count)
+        st.metric(f"{UI_TEXTS['TOTAL']} {UI_TEXTS['ARTICLES']}", article_count)
+        st.metric(f"{UI_TEXTS['TOTAL']} {UI_TEXTS['CATEGORIES']}", category_count)
         
 except Exception as e:
-    st.error(f"Error loading system metrics: {str(e)}")
+    st.error(f"️❌ {fu.get_function_name()}: Error loading system metrics: {str(e)}")

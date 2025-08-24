@@ -18,7 +18,7 @@ flask --app ops_svr run -p 5555
 """
 
 from flask import Flask, request, redirect, render_template, flash, url_for, session, jsonify, abort
-from flask_wtf.csrf import CSRFProtect, generate_csrf
+from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
 from flask_mail import Mail
 import os
 import email_utils as eu
@@ -68,10 +68,21 @@ log.propagate = False
 
 # Add after Flask app initialization
 app = Flask(__name__, template_folder='templates')
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-key-for-testing')  # Set a secure key in production environment
+# Configure Flask app
+app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.urandom(24).hex())
+app.config['WTF_CSRF_TIME_LIMIT'] = 3600  # 1 hour CSRF token expiration
+app.config['SESSION_COOKIE_SECURE'] = True  # Only send cookies over HTTPS
+app.config['REMEMBER_COOKIE_SECURE'] = True  # Only send remember cookies over HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent client-side JS access to cookies
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection for same-site requests
 
 # Initialize CSRF protection
 csrf = CSRFProtect(app)
+
+# Make CSRF token available in all templates
+@app.context_processor
+def inject_csrf_token():
+    return dict(csrf_token=generate_csrf)
 
 # Configure Flask-Mail with SSL on port 465
 app.config.update(
@@ -115,8 +126,7 @@ def init_globals():
     log.debug(f"subs GitHub Server: {git_subs}")
     
     # Load multi-language support
-    l10n_file = os.getenv("L10N_FILE")    
-    g_L10N = load_L10N(l10n_file)
+    g_L10N = load_L10N()
     g_L10N_options = list(g_L10N.keys())
     
     # Initialize system language settings
@@ -696,6 +706,7 @@ def set_l10n():
     return redirect(url_for('home'))
 
 @app.route('/subscribe', methods=['POST'])
+# 前端表單中必須包含: <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
 def subscribe():
     """
     Handle email subscription/unsubscription request
@@ -705,17 +716,19 @@ def subscribe():
     """
     global g_loc_key
     
+    # CSRF protection is automatically handled by Flask-WTF
+    
     email = request.form.get('email')
     action = request.form.get('action')
     
-    if not validate_email(email):
+    if not eu.validate_email(email):
         flash(f'{email} is not a valid email address', 'danger')
         return redirect(request.referrer or url_for('home'))
     
     try:
         if action == 'subscribe':
             # Generate verification token
-            token = generate_verification_token()
+            token = eu.generate_verification_token()
             # Send verification email
             if eu.send_verification_email(g_fmail, email, token, is_subscribe=True):
                 user_data = {
@@ -734,7 +747,7 @@ def subscribe():
         else:
             # For unsubscribing, we can send a verification email or unsubscribe directly
             # For security, we send a verification email here
-            token = generate_verification_token()
+            token = eu.generate_verification_token()
             if eu.send_verification_email(g_fmail, email, token, is_subscribe=False):
                 flash(f'Please check {email} to confirm unsubscription.', 'info')
             else:
@@ -763,7 +776,7 @@ def verify_email():
         return redirect(url_for('home'))
     
     # Verify token
-    if not verify_token(email, token):
+    if not dbm.verify_token(email, token):
         log.debug(f"Invalid or expired verification link: {email}, {token}, {action}")
         flash('Invalid or expired verification link', 'danger')
         return redirect(url_for('home'))
@@ -972,6 +985,14 @@ def reset_password():
         else:
             flash('Failed to reset password. Please try again.', 'error')
             return redirect(request.url)
+
+# Handle CSRF errors
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    return jsonify({
+        'error': 'Invalid CSRF token',
+        'message': 'The form has expired. Please refresh the page and try again.'
+    }), 400
 
 if __name__ == "__main__":
     main()

@@ -8,6 +8,7 @@ import os
 from typing import Dict, Any
 import streamlit as st
 import db_utils as dbm
+import funcUtils as fu
 from dotenv import load_dotenv
 load_dotenv()
 # ===== Application Settings (Module Level) =====
@@ -84,6 +85,17 @@ def update_context(new_values: dict):
         st.session_state.app_context = init_context()
     st.session_state.app_context.update(new_values)
     
+def init_session_state():
+    """Initialize session state variables"""
+    if 'authenticated' not in st.session_state:
+        st.session_state.authenticated = False
+    if 'app_context' not in st.session_state:
+        st.session_state.app_context = init_context()
+    if 'ui_context' not in st.session_state:
+        st.session_state.ui_context = fu.load_L10N()
+    if 'user_email' not in st.session_state:
+        st.session_state.user_email = None
+             
 # Helper function to get full file path with extension
 def get_file_path():
     """Generate full file path with correct extension based on selected file type."""

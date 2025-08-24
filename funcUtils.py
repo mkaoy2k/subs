@@ -20,7 +20,12 @@ import json
 from PIL import Image, ImageEnhance
 import os
 from typing import Dict, List, Any
-import context_utils as cu
+import traceback
+from dotenv import load_dotenv
+
+def get_function_name():
+    """取得目前函數名稱"""
+    return traceback.extract_stack(None, 2)[0][2]
 
 def load_menu(fn):
     """
@@ -54,7 +59,7 @@ def load_menu(fn):
     
     return js
 
-def load_L10N(f_l10n):
+def load_L10N():
     """
     Load all supported language localization (L10N) dictionaries.
     
@@ -71,7 +76,7 @@ def load_L10N(f_l10n):
              translation dictionaries.
         
     Example:
-        >>> l10n_dicts = load_L10N("L10N.json")
+        >>> l10n_dicts = load_L10N()
         >>> print(l10n_dicts['US']['welcome_message'])
         'Welcome to our application!'
         
@@ -84,7 +89,9 @@ def load_L10N(f_l10n):
         FileNotFoundError: If the configuration file or any translation file is not found.
         json.JSONDecodeError: If any of the JSON files contain invalid syntax.
     """
-    
+    load_dotenv(".env")
+    f_l10n = os.getenv("L10N_FILE", "L10N.json")
+
     # reading the data from the language-definition file
     with open(f_l10n) as f:
         data = f.read()
@@ -248,7 +255,7 @@ if __name__ == '__main__':
     # print(f"l_menu[1] Text={l_menu[1][1]}\n")
     # print(f"l_menu[2] URL={l_menu[2][0]}\n")
     # print(f"l_menu[2] Text={l_menu[2][1]}\n")
-    # g_L10N = load_L10N("L10N.json")
+    # g_L10N = load_L10N()
     # print(f"g_L10N={g_L10N}\n")
     # g_L10N_options = list(g_L10N.keys())
     # print(f"g_L10N_options={g_L10N_options}")

@@ -22,10 +22,7 @@ Main Features:
 
 import sqlite3
 import os
-import re
 import secrets
-import time
-import smtplib
 import csv
 from datetime import datetime
 from typing import Dict, Any, List, Union, Optional, Tuple
@@ -48,8 +45,15 @@ db_path = os.path.join(os.path.dirname(__file__), dbn)
 db_tables = {
     "user": os.getenv("TBL_USR", "user"),
     "article": os.getenv("TBL_ARTICLE", "article"),
-    "subscriber": "subscriber"  # not a `subscriber` table, merged into user table
+    "subscriber": "subscriber"  # not a pysical `subscriber` table, merged into user table
     }
+# User role values
+# Used in the 'is_admin' field of the mirdb_table['users'] table
+User_State = {
+    'p_admin': 2,    # Platform Administrator with full access
+    'f_admin': 1,     # Family Administrator with full access
+    'f_member': 0    # Family Member with limited access
+}
 Subscriber_State = {
     'active': 1, 
     'pending': 0,
@@ -612,6 +616,39 @@ def get_users():
         users = [dict(row) for row in cursor.fetchall()]
         return users
 
+def get_user(user_id):
+    """
+    Retrieve a user's information by their ID
+    
+    Args:
+        user_id (int): The ID of the user
+        
+    Returns:
+        dict: A dictionary containing user information if found, None otherwise
+    """
+    if not isinstance(user_id, int) or user_id <= 0:
+        log.error(f"Invalid user ID provided: {user_id}")
+        return None
+    with get_db_connection() as conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"SELECT * FROM {db_tables['user']} WHERE id = ?",
+                (user_id,)
+            )
+            result = cursor.fetchone()
+            if result:
+                return dict(zip([col[0] for col in cursor.description], result))
+            log.warning(f"No user found with ID: {user_id}")
+            return None
+            
+        except sqlite3.Error as e:
+            log.error(f"Database error while retrieving email for user ID {user_id}: {str(e)}")
+            return None
+        except Exception as e:
+            log.error(f"Unexpected error while retrieving email for user ID {user_id}: {str(e)}")
+            return None
+        
 def get_user_email(user_id):
     """
     Retrieve a user's email by their ID
@@ -625,26 +662,10 @@ def get_user_email(user_id):
     if not isinstance(user_id, int) or user_id <= 0:
         log.error(f"Invalid user ID provided: {user_id}")
         return None
-        
-    with get_db_connection() as conn:
-        try:
-            cursor = conn.cursor()
-            cursor.execute(
-                f"SELECT email FROM {db_tables['user']} WHERE id = ?",
-                (user_id,)
-            )
-            result = cursor.fetchone()
-            if result:
-                return result[0]
-            log.warning(f"No user found with ID: {user_id}")
-            return None
-            
-        except sqlite3.Error as e:
-            log.error(f"Database error while retrieving email for user ID {user_id}: {str(e)}")
-            return None
-        except Exception as e:
-            log.error(f"Unexpected error while retrieving email for user ID {user_id}: {str(e)}")
-            return None
+    user = get_user(user_id)
+    if user:
+        return user['email']
+    return None
 
 def delete_user(user_id):
     """
