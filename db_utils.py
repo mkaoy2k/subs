@@ -786,8 +786,8 @@ def get_articles(category, limit=None):
             query += " AND category = ?"
             params.append(category)
             
-        # Always order by id in ascending order
-        query += " ORDER BY id ASC"
+        # Order by id in descending order to show newest first
+        query += " ORDER BY id DESC"
         
         # Add limit if specified and valid
         if limit is not None and limit > 0:

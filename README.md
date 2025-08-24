@@ -1,13 +1,15 @@
-# 📰 Family Tree Newsletter Subscription System (FamilyTreesOps, or subs for short)
+# 📰 Family Tree Journal Subscription System
+
+(FamilyTreesOps, or code name as `subs` for short)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 
-## 📖 Project Introduction
+## 📖 Introduction
 
-FamilyTreesOps Journal System is a web service designed for families, allowing family members to easily subscribe to and receive family-related news and event information. The system provides complete front-end and back-end services, including subscription management, newsletter publishing, and editorial verification features.
+FamilyTreesOps Journal System is a web service designed for families, allowing family members to easily subscribe to and receive family-related news and event information. The system provides complete front-end and back-end services, including features, like subscription management, newsletter publishing, and editorial review etc.
 
-### ✨ Key Features
+### ✨ Current Key Features
 
 - **Membership System**
   - Secure login and registration for editors
@@ -91,13 +93,13 @@ FamilyTreesOps Journal System is a web service designed for families, allowing f
 
 ## 🛠️ Running the System
 
-### Start Backend Server
+### Start Web Server
 
 ```bash
 python ops_svr.py
 ```
 
-### Start Admin Interface (For Editors)
+### Start Admin Interface (For Admins)
 
 ```bash
 streamlit run subs_ui.py
@@ -105,27 +107,42 @@ streamlit run subs_ui.py
 
 ## ⚙️ Environment Variables
 
-| Variable Name | Description | Example | Required |
-|--------------|-------------|---------|----------|
-| `APP_NAME` | Application name | `FamilyTreesOps` | Yes |
-| `ARTICLE_WINDOW` | Article display window in days | `7` | No |
-| `BASE_URL` | Base URL of the application | `http://localhost:5566` | Yes |
-| `DB_ADMIN` | Database admin email | `admin@familytreesops.com` | Yes |
-| `DB_ADMIN_PW` | Database admin password | `your-db-admin-pw` | Yes |
-| `DB_NAME` | Database file path | `data/users.db` | Yes |
-| `DB_SVR` | Database server type | `sqlite3` | Yes |
-| `FT_SVR` | FamilyTreesPE server URL | `http://localhost:8001` | Yes |
-| `FT_SVR_PORT` | FamilyTreesPE server port | `8001` | Yes |
-| `LOGGING` | Logging level (DEBUG/INFO/WARNING/ERROR/CRITICAL) | `DEBUG` | No |
-| `MAIL_DEFAULT_SENDER` | Default sender email | `your-gmail-account@gmail.com` | Yes |
-| `MAIL_PASSWORD` | Gmail app password | `your-gmail-app-password` | Yes |
-| `MAIL_USERNAME` | Gmail account | `your-gmail-account@gmail.com` | Yes |
-| `OPS_SVR` | Operations server URL | `http://localhost:5566` | Yes |
-| `OPS_SVR_PORT` | Operations server port | `5566` | Yes |
-| `RELEASE` | Application release version | `2.0` | Yes |
-| `SECRET_KEY` | Application secret key | `your-secret-key` | Yes |
-| `TBL_ARTICLE` | Articles table name | `article` | Yes |
-| `TBL_USR` | Users table name | `user` | Yes |
+### Server Configuration
+
+- `OPS_SVR`: Operations server URL (e.g., `http://localhost:5566`)
+- `OPS_SVR_PORT`: Operations server port (e.g., `5566`)
+- `RELEASE`: Application release version (e.g., `2.0`)
+- `L10N_FILE`: Localization file (default: `L10N.json`)
+- `L10N`: Language code (e.g., `繁中`)
+- `TIMEZONE`: Server timezone (e.g., `Your Timezone`)
+
+### Database Configuration
+
+- `DB_SVR`: Database server type (e.g., `sqlite3`)
+- `DB_NAME`: Database file path (e.g., `data/users.db`)
+- `TBL_USR`: Users table name (e.g., `user`)
+- `TBL_ARTICLE`: Articles table name (e.g., `article`)
+- `DB_ADMIN`: Database admin email (e.g., `Your DB Admin Email`)
+- `DB_ADMIN_PW`: Database admin password (e.g., `Your DB Admin Password`)
+
+### Email Configuration
+
+- `MAIL_USERNAME`: Gmail account (e.g., `Your Gmail Account`)
+- `MAIL_PASSWORD`: Gmail app password (e.g., `Your Gmail App Password`)
+- `MAIL_DEFAULT_SENDER`: Default sender email (e.g., `Your Gmail Account`)
+
+### App Configuration
+
+- `APP_NAME`: Application name (e.g., `Your App Name`)
+- `BASE_URL`: Base URL of the application (e.g., `Your Base URL`)
+- `SECRET_KEY`: Application secret key (e.g., `Your Flask Secret Key`)
+- `FT_SVR`: FamilyTreesPE server URL (e.g., `Your FamilyTreesPE Server URL`)
+
+### Optional Variables
+
+- `ARTICLE_WINDOW`: Article display window in days (default: `7`)
+- `LOGGING`: Logging level (e.g., `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) (default: `INFO`)
+
 
 ## 🤝 Contributing
 
