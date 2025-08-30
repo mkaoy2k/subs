@@ -55,7 +55,7 @@ if st.button(f"{UI_TEXTS['PUBLISH']} {UI_TEXTS['LANGUAGE']}:{l10n}", type="prima
            st.markdown(css_style, unsafe_allow_html=True)
            st.markdown(f'<div class="publish-message">{UI_TEXTS["CONFIRM"]}: {UI_TEXTS["PUBLISH"]} {UI_TEXTS["LANGUAGE"]}:{l10n}, click the link below:</div>', 
                        unsafe_allow_html=True)
-           st.markdown(f'<div class="publish-message" style="font-size: 50px;"><a href="{ops_svr}/pub?lang={l10n}" target="_blank">FamilyTreesOps</a></div>', 
+           st.markdown(f'<div class="publish-message" style="font-size: 50px;"><a href="{ops_svr}/pub?lang={l10n}&email={st.session_state.user_email}&password={st.session_state.user_pass}" target="_blank">FamilyTreesOps</a></div>', 
                        unsafe_allow_html=True)
         except Exception as e:
             st.error(f"️❌ {fu.get_function_name()}: {UI_TEXTS['PUBLISH']} {UI_TEXTS['LANGUAGE']}: {l10n}: {str(e)} {UI_TEXTS['FAILED']}")

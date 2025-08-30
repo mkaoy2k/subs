@@ -81,6 +81,7 @@ def show_login_page():
                     if au.verify_admin(email, password):
                         st.session_state.authenticated = True
                         st.session_state.user_email = email
+                        st.session_state.user_pass = password
                         msg = f"✅ {UI_TEXTS['LOGIN']} {UI_TEXTS['SUCCEEDED']}!"
                         log.debug(msg)
                         st.rerun()
@@ -237,6 +238,7 @@ def show_admin_sidebar():
         if st.sidebar.button(f"{UI_TEXTS['LOGOUT']}", type="primary", use_container_width=True):
             st.session_state.authenticated = False
             st.session_state.user_email = None
+            st.session_state.user_pass = None
             st.rerun()
 
         # Display current admin users

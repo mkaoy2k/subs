@@ -22,6 +22,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
 from flask_mail import Mail
 import os
 import email_utils as eu
+import auth_utils as au
 import db_utils as dbm
 from funcUtils import load_menu, load_L10N, load_page_cat
 import logging
@@ -384,7 +385,6 @@ def about():
     })
     return render_template('about.html', **context)
 
-
 @app.route("/privacy")
 def privacy():
     """Privacy Policy page"""
@@ -401,7 +401,6 @@ def privacy():
     })
     return render_template('privacy.html', **context)
 
-
 @app.route("/terms")
 def terms():
     """Terms of Service page"""
@@ -417,7 +416,6 @@ def terms():
         'last_updated': '2024-06-26'
     })
     return render_template('terms.html', **context)
-
 
 @app.route("/contact", methods=['GET', 'POST'])
 def contact():
@@ -810,9 +808,20 @@ def pub_newsletter():
     global g_loc, g_home, g_loc_key, g_L10N, g_L10N_options
     
     lang = request.args.get('lang', g_loc_key)
+    email = request.args.get('email')
+    password = request.args.get('password')
+    
     if lang not in g_L10N_options:
-        lang = g_loc_key
-        
+        log.debug(f"Language not found: {lang}")
+        flash(f'{g_loc.get("PUB_HTML_FAILS", "Language not found")}', 'warning')
+        return redirect(url_for('home'))   
+    
+    # Show login page and check if user is admin     
+    if not au.verify_admin(email, password):
+        log.debug(f"Login failed")
+        flash(f'{g_loc.get("LOGIN", "login")} {g_loc.get("FAILED", "failed")}', 'warning')
+        return redirect(url_for('login'))
+    
     # reload global variables
     init_globals()
     # Update global variables
@@ -918,19 +927,6 @@ def pub_newsletter():
         
     return redirect(url_for('home'))    
 
-def main():
-    """
-    Main function
-    
-    Start Flask server
-    """
-    log.info("Starting FamilyTreesOps server...")
-    # app.run(host='0.0.0.0', port=os.getenv("OPS_SVR_PORT", 5555), use_reloader=False)
-    app.run(port=os.getenv("OPS_SVR_PORT", 5566), debug=True)
-
-# Initialize global variables
-init_globals()
-
 @app.route('/reset-password', methods=['GET', 'POST'])
 def reset_password():
     """Handle password reset requests and form submission"""
@@ -993,6 +989,19 @@ def handle_csrf_error(e):
         'error': 'Invalid CSRF token',
         'message': 'The form has expired. Please refresh the page and try again.'
     }), 400
+
+def main():
+    """
+    Main function
+    
+    Start Flask server
+    """
+    log.info("Starting FamilyTreesOps server...")
+    # app.run(host='0.0.0.0', port=os.getenv("OPS_SVR_PORT", 5555), use_reloader=False)
+    app.run(port=os.getenv("OPS_SVR_PORT", 5566), debug=True)
+
+# Initialize global variables
+init_globals()
 
 if __name__ == "__main__":
     main()
