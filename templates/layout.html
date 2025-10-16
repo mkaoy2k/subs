@@ -27,6 +27,47 @@
             font-style: italic;
             margin-bottom: 30px;
         }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .section {
+            background: #fff;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .image-row {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-around;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .image-row img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            h3 {
+                font-size: 1.5rem;
+            }
+            .image-row {
+                flex-direction: column;
+                align-items: center;
+            }
+            .section {
+                margin: 10px 0;
+                padding: 15px;
+            }
+        }
         .topic {
             background-color: #e8f4fc;
             padding: 15px;
