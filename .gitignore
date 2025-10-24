@@ -42,6 +42,7 @@ wip.py
 data/*.db
 data/*.sqlite
 data/*.sqlite3
+data/backup*
 
 # Streamlit Examples
 main.py
