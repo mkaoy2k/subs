@@ -38,8 +38,10 @@ test_*
 prod_*
 wip.py
 
-# FamilyTrees Data files
-data/*
+# Data files
+data/*.db
+data/*.sqlite
+data/*.sqlite3
 
 # Streamlit Examples
 main.py
