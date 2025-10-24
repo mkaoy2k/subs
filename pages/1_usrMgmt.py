@@ -1,10 +1,20 @@
 """
-User Management Page
+User Management Module
 
-This page provides user management functionality including:
-- Viewing table structures
-- Adding/removing columns
-- Managing tables
+This module implements comprehensive user management functionality for the subscription system,
+including user profile management, subscription handling, and administrative operations.
+
+Key Features:
+- User profile viewing and editing
+- Subscription management
+- Administrative controls and user permissions
+- Data visualization and reporting
+- System configuration and maintenance
+
+Dependencies:
+- Streamlit for web interface
+- Pandas for data manipulation
+- Custom database utilities for data persistence
 """
 import streamlit as st
 import pandas as pd
@@ -326,7 +336,7 @@ def show_subscriber_page():
                 else:
                     st.warning(f"️⚠️ {fu.get_function_name()}: {UI_TEXTS['UNSUBSCRIBE']}: {email} {UI_TEXTS['FAILED']}")
     
-        # --- manage a specific user --- from here
+        # --- manage danger zone to delete by subscriber email or user id --- from here
         with st.expander(f"{UI_TEXTS['DANGER_ZONE']}", expanded=False):
             st.warning(f"⚠️ {UI_TEXTS['CANNOT_BE_UNDONE']}")
             col221, col222 = st.columns([5,5])
