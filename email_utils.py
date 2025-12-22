@@ -58,8 +58,8 @@ class EmailPublisher:
         
     def _create_email(self, subject: str, text: str, html: str, recipients: List[str]) -> MIMEMultipart:
         """
-        Create an email message with both plain text 
-        and HTML formats
+        Create an email message with both plain text and HTML formats
+        with full Unicode support for all character sets including Traditional Chinese.
         
         Args:
             subject (str): The subject of the email.
@@ -68,24 +68,38 @@ class EmailPublisher:
             recipients (List[str]): List of recipient email addresses.
             
         Returns:
-            MIMEMultipart: The created email message object.
+            MIMEMultipart: The created email message object with proper encoding.
         """
-        msg = MIMEMultipart("alternative")
+        # Create the root message
+        msg = MIMEMultipart('alternative')
+        
+        # Set basic headers with proper encoding
         msg['From'] = self.email_sender
         msg['To'] = ", ".join(recipients)
-        msg['Subject'] = subject
-
-        # Add both plain text and HTML parts
+        
+        # Encode subject with proper header encoding
+        if isinstance(subject, str):
+            from email.header import Header
+            msg['Subject'] = Header(subject, 'utf-8')
+        
+        # Set content type and charset
+        msg.preamble = 'This is a multi-part message in MIME format.'
+        
+        # Add text/plain part if available
         if text:
-            msg.attach(MIMEText(text, "plain"))
+            part1 = MIMEText(text, 'plain', 'utf-8')
+            msg.attach(part1)
+            
+        # Add text/html part if available
         if html:
-            msg.attach(MIMEText(html, "html"))
+            part2 = MIMEText(html, 'html', 'utf-8')
+            msg.attach(part2)
         
         return msg
 
-    def publish_email(self, subject: str, text: str, html: str, recipients: List[str]):
+    def publish_email(self, subject: str, text: str, html: str, recipients: List[str]) -> bool:
         """
-        Send email to multiple recipients
+        Send email to multiple recipients with full Unicode support.
         
         Args:
             subject (str): The subject of the email.
@@ -96,29 +110,81 @@ class EmailPublisher:
         Returns:
             bool: True if the email was sent successfully, False otherwise.
         """
+        if not recipients:
+            log.error('publish_email(): No recipients specified')
+            return False
+            
         try:
-            # Create email message object
+            # Ensure text is not None
+            text = text or ''
+            html = html or ''
+            
+            # Create email message with proper encoding
             msg = self._create_email(subject, text, html, recipients)
             
-            # Create secure SSL connection
-            context = ssl.create_default_context()
-            context.load_default_certs()
-            context.minimum_version = ssl.TLSVersion.TLSv1_2
+            # Setup SMTP server with timeout and debug info
+            log.info(f'Connecting to SMTP server: {Config.MAIL_SERVER}:{Config.MAIL_PORT}')
             
-            # Send email
-            with smtplib.SMTP_SSL(Config.MAIL_SERVER, Config.MAIL_PORT, context=context) as smtp:
+            # Use a context manager to ensure proper cleanup
+            with smtplib.SMTP_SSL(
+                host=Config.MAIL_SERVER,
+                port=Config.MAIL_PORT,
+                timeout=30,
+                context=ssl.create_default_context()
+            ) as server:
+                # Enable debug output if in debug mode
+                if Config.MAIL_DEBUG:
+                    server.set_debuglevel(1)
+                
+                # Connect and authenticate
+                server.ehlo()
+                
                 try:
-                    smtp.login(self.email_sender, self.email_password)
-                    smtp.sendmail(self.email_sender, recipients, msg.as_string())
+                    log.info(f'Authenticating as: {self.email_sender}')
+                    server.login(self.email_sender, self.email_password)
+                    
+                    # Convert recipients to string and log
+                    to_addrs = [str(addr).strip() for addr in recipients if str(addr).strip()]
+                    log.info(f'Sending email to: {", ".join(to_addrs)}')
+                    
+                    # Send the email
+                    server.send_message(msg)
+                    log.info('Email sent successfully')
                     return True
+                    
                 except smtplib.SMTPAuthenticationError as e:
-                    log.error(f'publish_email(): Login failed: {str(e)}')
+                    error_msg = f'SMTP Authentication failed: {str(e)}. Please check your email credentials.'
+                    log.error(error_msg)
                     return False
+                    
+                except smtplib.SMTPRecipientsRefused as e:
+                    error_msg = f'Recipient refused: {e.recipients}'
+                    log.error(error_msg)
+                    return False
+                    
+                except smtplib.SMTPException as e:
+                    error_msg = f'SMTP error occurred: {str(e)}'
+                    log.error(error_msg)
+                    return False
+                    
                 except Exception as e:
-                    log.error(f'publish_email(): Error sending email: {str(e)}')
+                    error_msg = f'Unexpected error while sending email: {str(e)}'
+                    log.error(error_msg, exc_info=True)
                     return False
+                    
+        except socket.gaierror as e:
+            error_msg = f'Failed to connect to SMTP server: {str(e)}. Please check your internet connection.'
+            log.error(error_msg)
+            return False
+            
+        except ssl.SSLError as e:
+            error_msg = f'SSL/TLS error occurred: {str(e)}. Please check your SMTP server configuration.'
+            log.error(error_msg)
+            return False
+            
         except Exception as e:
-            log.error(f'publish_email(): General error: {str(e)}')
+            error_msg = f'Failed to send email: {str(e)}'
+            log.error(error_msg, exc_info=True)
             return False
 
 def validate_email(email):

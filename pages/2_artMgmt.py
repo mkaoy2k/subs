@@ -259,7 +259,7 @@ def main():
                 st.warning(f"⚠️ {UI_TEXTS['CANNOT_BE_UNDONE']}")
                 if st.button(f"{UI_TEXTS['DELETE']} {UI_TEXTS['ARTICLE']} {UI_TEXTS['ID']}: {cursor_id}"):
                     if dbm.delete_article(cursor_id):
-                        st.success(f"✅ {UI_TEXTS['DELETED']} {UI_TEXTS['ARTICLE']} {UI_TEXTS['ID']}: {cursor_id}")
+                        st.success(f"✅ {UI_TEXTS['DELETE']} {UI_TEXTS['ARTICLE']} {UI_TEXTS['ID']}: {cursor_id}")
                     else:
                         st.error(f"️❌ {fu.get_function_name()}: {UI_TEXTS['DELETE']} {UI_TEXTS['ARTICLE']} {UI_TEXTS['ID']}: {cursor_id} {UI_TEXTS['FAILED']}")
             
@@ -318,7 +318,7 @@ def main():
                                     html,
                                     to_emails
                                     ):
-                                    msg = f"✅ {UI_TEXTS['ARTICLE']} {UI_TEXTS['ID']}: {review_id} {UI_TEXTS['CATEGORY']}: {cat}"
+                                    msg = f"✅ {UI_TEXTS['ARTICLE']} {UI_TEXTS['ID']}: {review_id} {UI_TEXTS['CATEGORY']}: {dbm.Article_Categories[cat_key]}"
                                     log.info(msg)
                                     st.success(msg)
                                 else:
@@ -330,15 +330,15 @@ def main():
                                 log.error(msg)
                                 st.error(msg)
                         else:
-                            st.error(f"❌ {UI_TEXTS['APPROVE']} {UI_TEXTS['FEEDBACK']} {UI_TEXTS['ID']}: {review_id} {UI_TEXTS['CATEGORY']}: {cat} {UI_TEXTS['FAILED']}")
+                            st.error(f"❌ {UI_TEXTS['APPROVE']} {UI_TEXTS['FEEDBACK']} {UI_TEXTS['ID']}: {review_id} {UI_TEXTS['CATEGORY']}: {dbm.Article_Categories[cat_key]} {UI_TEXTS['FAILED']}")
             
                 with btn32:
                     if st.button(f"{UI_TEXTS['REJECT']} {UI_TEXTS['FEEDBACK']} {UI_TEXTS['ID']}: {review_id}"):
                         if dbm.review_article(review_id, dbm.Article_State['rejected'],
                                 category=dbm.Article_Categories[cat_key]):
-                            st.success(f"✅ {UI_TEXTS['REJECT']} {UI_TEXTS['FEEDBACK']} {UI_TEXTS['ID']}: {review_id} {UI_TEXTS['CATEGORY']}: {cat}")
+                            st.success(f"✅ {UI_TEXTS['REJECT']} {UI_TEXTS['FEEDBACK']} {UI_TEXTS['ID']}: {review_id} {UI_TEXTS['CATEGORY']}: {dbm.Article_Categories[cat_key]}")
                         else:
-                            st.error(f"️❌ {fu.get_function_name()}: {UI_TEXTS['REJECT']} {UI_TEXTS['FEEDBACK']} {UI_TEXTS['ID']}: {review_id} {UI_TEXTS['CATEGORY']}: {cat} {UI_TEXTS['FAILED']}")
+                            st.error(f"️❌ {fu.get_function_name()}: {UI_TEXTS['REJECT']} {UI_TEXTS['FEEDBACK']} {UI_TEXTS['ID']}: {review_id} {UI_TEXTS['CATEGORY']}: {dbm.Article_Categories[cat_key]} {UI_TEXTS['FAILED']}")
             
             # --- Review Pending Contact --- from here
             st.subheader(f"{UI_TEXTS['REVIEW']} {UI_TEXTS['CONTACT']}")
