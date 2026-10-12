@@ -197,7 +197,7 @@ def validate_email(email):
     Returns:
         bool: True if the email is legitimate, False otherwise.
     """
-    pattern = r"^[a-zA-Z0-9-_.]+@[a-zA-Z0-9-]+\.[a-z]{2,4}$"
+    pattern = r"^[a-zA-Z0-9-_.]+@[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)*\.[a-z]{2,}$"
 
     if re.match(pattern, email):
         return True
