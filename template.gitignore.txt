@@ -29,7 +29,6 @@ htmlcov/
 .eggs/
 dist/
 build/
-pyproject.toml
 
 # FamilyTrees internal tool files
 config.yaml
