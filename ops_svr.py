@@ -10,16 +10,22 @@ Main Features:
 - FAQ page
 - About page
 
-Method 1: Direct Execution
-python ops_svr.py
+Production (default) — waitress, Flask debug off:
+    python ops_svr.py
 
-Method 2: Using Flask Command
-flask --app ops_svr run -p 5555
+Development — Flask's built-in server, debugger, and reloader:
+    python ops_svr.py --dev
+    OPS_DEV=1 python ops_svr.py
+
+The module-level Flask callable for an external WSGI server is `app`
+(for example `ops_svr:app`). Do not use `flask run` in production;
+that command is Flask's development server.
 """
 
 from flask import Flask, request, redirect, render_template, flash, url_for, session, jsonify, abort
 from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
 from flask_mail import Mail
+import argparse
 import os
 import email_utils as eu
 import auth_utils as au
@@ -990,15 +996,90 @@ def handle_csrf_error(e):
         'message': 'The form has expired. Please refresh the page and try again.'
     }), 400
 
-def main():
+def _env_truthy(name):
+    """True when an environment flag is 1/true/yes/on."""
+    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def server_settings():
     """
-    Main function
-    
-    Start Flask server
+    Host, port, and waitress thread count.
+
+    Defaults match the previous `app.run` behavior: localhost and port 5566.
+    Thread count stays at 1 because `before_request` stores the active
+    language in module globals, so overlapping requests can mix languages.
     """
-    log.info("Starting FamilyTreesOps server...")
-    # app.run(host='0.0.0.0', port=os.getenv("OPS_SVR_PORT", 5555), use_reloader=False)
-    app.run(port=os.getenv("OPS_SVR_PORT", 5566), debug=True)
+    host = os.getenv("OPS_SVR_HOST", "127.0.0.1").strip() or "127.0.0.1"
+
+    raw_port = os.getenv("OPS_SVR_PORT", "5566")
+    try:
+        port = int(raw_port)
+    except (TypeError, ValueError):
+        log.warning(f"Invalid OPS_SVR_PORT={raw_port!r}; using 5566")
+        port = 5566
+    if port < 1 or port > 65535:
+        log.warning(f"OPS_SVR_PORT {port} is out of range; using 5566")
+        port = 5566
+
+    raw_threads = os.getenv("OPS_SVR_THREADS", "1")
+    try:
+        threads = int(raw_threads)
+    except (TypeError, ValueError):
+        log.warning(f"Invalid OPS_SVR_THREADS={raw_threads!r}; using 1")
+        threads = 1
+    if threads < 1:
+        log.warning(f"OPS_SVR_THREADS {threads} is below 1; using 1")
+        threads = 1
+
+    return host, port, threads
+
+
+def main(argv=None):
+    """
+    Start FamilyTreesOps.
+
+    The default path serves `app` with waitress (a production WSGI server)
+    and does not enable Flask's debugger. Pass --dev, or set OPS_DEV, to
+    run Flask's development server instead.
+    """
+    parser = argparse.ArgumentParser(description="FamilyTreesOps server")
+    parser.add_argument(
+        "--dev",
+        action="store_true",
+        help="Run Flask's development server with the debugger and reloader. Not for production.",
+    )
+    args = parser.parse_args(argv)
+    dev = args.dev or _env_truthy("OPS_DEV")
+    host, port, threads = server_settings()
+
+    if dev:
+        log.warning(
+            "Starting FamilyTreesOps development server "
+            f"(Flask debugger) on http://{host}:{port}. Not for production."
+        )
+        # debug=True turns on the reloader and Werkzeug's development server.
+        app.run(host=host, port=port, debug=True)
+        return
+
+    if threads != 1:
+        log.warning(
+            f"OPS_SVR_THREADS={threads}. before_request stores the active language "
+            "in module globals, so overlapping requests can mix languages. "
+            "Prefer 1 until that state is request-local."
+        )
+
+    log.info(
+        f"Starting FamilyTreesOps server (waitress) on http://{host}:{port} "
+        f"(threads={threads})"
+    )
+    try:
+        from waitress import serve
+    except ImportError:
+        log.error(
+            "waitress is not installed. Install project dependencies and retry."
+        )
+        raise
+    serve(app, host=host, port=port, threads=threads)
 
 # Initialize global variables
 init_globals()

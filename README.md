@@ -3,7 +3,7 @@
 (FamilyTreesOps, or code name as `subs` for short)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.8+](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.13+](https://img.shields.io/badge/Python-3.13+-blue.svg)](https://www.python.org/downloads/)
 
 ## 📖 Introduction
 
@@ -32,7 +32,8 @@ FamilyTreesOps Journal System is a web service designed for families, allowing f
 
 ### System Requirements
 
-- Python 3.8 or newer
+- Python 3.13 or newer (`uv.lock` sets `requires-python = ">=3.13"`)
+- [uv](https://docs.astral.sh/uv/) (this is how the server is run locally)
 - SQLite 3 (built-in)
 - Email service (e.g., Gmail)
 
@@ -45,22 +46,23 @@ FamilyTreesOps Journal System is a web service designed for families, allowing f
    cd subs
    ```
 
-2. **Create Virtual Environment (Recommended)**
+2. **Install Dependencies**
+
+   `pyproject.toml` and `uv.lock` are the dependency set `uv run` uses. `requirements.txt` is an older full-environment freeze: it includes macOS-only packages such as `pyobjc`, and Flask itself is absent from that file.
 
    ```bash
-   python -m venv .venv
-   source .venv/bin/activate  # Linux/Mac
-   # or
-   .\.venv\Scripts\activate  # Windows
+   uv sync
    ```
 
-3. **Install Dependencies**
+   `uv sync` creates `.venv`. `uv run` uses it on macOS, Linux, and Windows.
+
+   On Linux, if you want the optional gunicorn extra (see below):
 
    ```bash
-   pip install -r requirements.txt
+   uv sync --extra gunicorn
    ```
 
-4. **Configure Environment Variables**
+3. **Configure Environment Variables**
 
    ```bash
    cp template.env.txt .env
@@ -77,32 +79,77 @@ FamilyTreesOps Journal System is a web service designed for families, allowing f
 
    Edit `L10N_<your language>.json` if your language is newly added. The default localization files included are Traditional Chinese `L10N_TW.json` and English `L10N_US.json`.
 
-   Edit `ops_svr.py` for your production Flask server. For example, you can set `DEBUG = False` and `HOST = '0.0.0.0'`.
+   Leave debug and the listen address to environment variables (`OPS_SVR_HOST`, `OPS_SVR_PORT`, `OPS_DEV`). `python ops_svr.py` serves the app with waitress and leaves Flask debug off. Pass `--dev` when you want the debugger.
 
-5. **Initialize Data Directory**
+4. **Initialize Data Directory**
 
    ```bash
    mkdir -p data
    ```
 
-6. **Initialize Admin User Database**
+5. **Initialize Admin User Database**
 
    ```bash
-   python genesis.py
+   uv run python genesis.py
    ```
 
 ## 🛠️ Running the System
 
-### Start Web Server
+This repo has no systemd unit, Dockerfile, or cloud-host config. `requirements.txt` includes macOS frameworks (`pyobjc`), and sample pages link out through ngrok tunnels. The default server is **waitress**, which runs on macOS, Linux, and Windows. gunicorn is the Unix alternative (it imports `fcntl`, so the Windows path stays on waitress).
+
+### Production web server (default)
 
 ```bash
-python ops_svr.py
+uv run python ops_svr.py
 ```
+
+That process loads `ops_svr:app` and serves it with waitress. Flask debug and the reloader stay off, and Werkzeug's development-server warning stays silent.
+
+Equivalent, if you would rather invoke the WSGI server directly (expand the port yourself; this form does not read `OPS_SVR_PORT`):
+
+```bash
+uv run waitress-serve --listen=127.0.0.1:5566 --threads=1 ops_svr:app
+```
+
+Listen address:
+
+- `OPS_SVR_HOST` (default `127.0.0.1`, same as the old `app.run` default)
+- `OPS_SVR_PORT` (default `5566`)
+- `OPS_SVR_THREADS` (default `1`)
+
+Leave the thread count at 1. `before_request` writes the active language into module globals, so overlapping requests can serve the wrong language. Set `OPS_SVR_HOST=0.0.0.0` only when this process should accept connections on every interface.
+
+### Linux: gunicorn
+
+gunicorn is a Unix WSGI server and an optional extra. A plain `uv sync` leaves it out. Locked gunicorn 26 imports `fcntl`, so on Windows use the waitress command above.
+
+```bash
+uv sync --extra gunicorn
+uv run gunicorn --bind 127.0.0.1:5566 --workers 1 --threads 1 ops_svr:app
+```
+
+Keep `--threads 1` (the sync worker). `--threads` greater than 1 switches gunicorn to a threaded worker and hits the same module-global language state. More than one sync worker is a separate process per worker; that avoids the threaded race, but concurrent SQLite access has not been validated here.
+
+### Development server
+
+Use this only when you want the debugger and auto-reloader. It **will** print Flask's development-server warning. That is expected.
+
+```bash
+uv run python ops_svr.py --dev
+```
+
+or:
+
+```bash
+OPS_DEV=1 uv run python ops_svr.py
+```
+
+`flask --app ops_svr run` is the development server as well. Production stays `uv run python ops_svr.py`.
 
 ### Start Admin Interface (For Admins)
 
 ```bash
-streamlit run subs_ui.py
+uv run streamlit run subs_ui.py
 ```
 
 ## ⚙️ Environment Variables
@@ -110,7 +157,10 @@ streamlit run subs_ui.py
 ### Server Configuration
 
 - `OPS_SVR`: Operations server URL (e.g., `http://localhost:5566`)
+- `OPS_SVR_HOST`: Interface the WSGI server binds (default `127.0.0.1`)
 - `OPS_SVR_PORT`: Operations server port (e.g., `5566`)
+- `OPS_SVR_THREADS`: waitress thread count (default `1`; see the warning above)
+- `OPS_DEV`: set to `1` to run Flask's development server instead of waitress
 - `RELEASE`: Application release version (e.g., `2.0`)
 - `L10N_FILE`: Localization file (default: `L10N.json`)
 - `L10N`: Language code (e.g., `繁中`)
