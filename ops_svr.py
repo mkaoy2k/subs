@@ -20,13 +20,19 @@ Development — Flask's built-in server, debugger, and reloader:
 The module-level Flask callable for an external WSGI server is `app`
 (for example `ops_svr:app`). Do not use `flask run` in production;
 that command is Flask's development server.
+
+The active language, menu, and page strings are request-local (`flask.g`,
+set by `bind_request_locale`). Shared catalogs stay module-level and are
+swapped as a whole. `OPS_SVR_THREADS` may be raised above 1 without mixing
+languages across overlapping requests. The default remains 1.
 """
 
-from flask import Flask, request, redirect, render_template, flash, url_for, session, jsonify, abort
+from flask import Flask, request, redirect, render_template, flash, url_for, session, jsonify, abort, g
 from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
 from flask_mail import Mail
 import argparse
 import os
+import threading
 import email_utils as eu
 import auth_utils as au
 import db_utils as dbm
@@ -34,21 +40,27 @@ from funcUtils import load_menu, load_L10N, load_page_cat
 import logging
 from dotenv import load_dotenv
 
-# Global variables
+# Shared catalogs and process config. These are not the active request
+# language. A request copies one language onto flask.g in bind_request_locale.
 g_L10N = {}
 g_L10N_options = []
-g_loc_key = None
-g_loc = None
 g_MENU = {}
-g_menu = {}
 g_PAGE = {}
-g_home = {}
-g_faq = {}
-g_about = {}
+g_PAGE_CAT = {}
+g_default_loc_key = None
 backend = None
 ft_svr = None
 git_ftpe = None
 git_subs = None
+
+# Held only while publishing a new catalog snapshot, not during database reads.
+_catalog_lock = threading.Lock()
+
+# Language choice for the browser. This is not the Secure session cookie:
+# SESSION_COOKIE_SECURE is on, so browsers drop that cookie on the default
+# http://127.0.0.1 listener. A language code is not a credential.
+LANG_COOKIE = "current_lang"
+LANG_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 
 # Load environment variables
 load_dotenv(".env")
@@ -112,59 +124,14 @@ g_fmail = Mail(app)
 log.info(f"Email server configured: {app.config['MAIL_SERVER']}:{app.config['MAIL_PORT']}")
 log.info(f"Using TLS: {app.config['MAIL_USE_TLS']}, Using SSL: {app.config['MAIL_USE_SSL']}")
 
-def init_globals():
-    """
-    Initialize global variables
-    """
-    global g_L10N, g_L10N_options, g_loc_key, g_loc
-    global g_MENU, g_menu, g_PAGE, g_PAGE_CAT, g_home, g_faq, g_about
-    global backend, ft_svr, git_ftpe, git_subs
-    
-    # Load database backend settings
-    backend = os.getenv("DB_SVR", "sqlite3")
-    log.debug(f"DB_SVR import: {backend}")
-    
-    # Set FamilyTrees server endpoints
-    ft_svr = os.getenv("FT_SVR", "https://crappie-on-kingfish.ngrok-free.app")
-    log.debug(f"FamilyTreesPE Server: {ft_svr}")    
-    git_ftpe = os.getenv("GIT_FTPE", "https://github.com/mkaoy2k/ftpe.git")
-    log.debug(f"ftpe GitHub Server: {git_ftpe}")
-    git_subs = os.getenv("GIT_SUBS", "https://github.com/mkaoy2k/subs.git")
-    log.debug(f"subs GitHub Server: {git_subs}")
-    
-    # Load multi-language support
-    g_L10N = load_L10N()
-    g_L10N_options = list(g_L10N.keys())
-    
-    # Initialize system language settings
-    g_loc_key = os.getenv("L10N")
-    g_loc = g_L10N[g_loc_key]
-    log.debug(f"L10N='{g_loc_key}'...")
-    
-    # Load Application settings
-    article_window = int(os.getenv("ARTICLE_WINDOW", "7"))
-    log.debug(f"ARTICLE_WINDOW: {article_window}")
-    
-    # Load menu
-    f_menu = os.getenv("OPS_MENU_FILE","ops_menu.json")
-    g_MENU = load_menu(f_menu)
-    g_menu = g_MENU[g_loc_key]
-   
-    # Load page categories
-    f_page_cat = os.getenv("OPS_PAGE_CAT","page_category.json")
-    g_PAGE_CAT = load_page_cat(f_page_cat)
-    log.debug(f"Page categories: {g_PAGE_CAT}")
-    
-    # Initialize page content for all languages
-    g_PAGE = {}
-    for idx, loc in enumerate(g_L10N_options):
+def _load_page_content(page_cat, options, article_window):
+    """Build per-language page content without touching module globals."""
+    pages = {}
+    for idx, loc in enumerate(options):
         l_page = {}
-        
-        # Initialize home page from here
-        cats = g_PAGE_CAT['home']
+
         l_home = {}
-        for cat in cats:
-            # get articles within the window
+        for cat in page_cat['home']:
             articles = dbm.get_articles_byDays(cat, byDays=article_window)
             if articles:
                 log.debug(f"Found {len(articles)} articles in category '{cat}' from last {article_window} days")
@@ -175,12 +142,9 @@ def init_globals():
             else:
                 log.debug(f"No articles found in category '{cat}' from last {article_window} days")
         l_page['home'] = l_home
-        
-        # Initialize FAQ page from here
-        cats = g_PAGE_CAT['faq']
+
         l_faq = {}
-        for cat in cats:
-            # get all articles of this category
+        for cat in page_cat['faq']:
             articles = dbm.get_articles(cat)
             if articles:
                 log.debug(f"Found {len(articles)} articles in category '{cat}'")
@@ -191,12 +155,9 @@ def init_globals():
             else:
                 log.debug(f"No articles found in category '{cat}'")
         l_page['faq'] = l_faq
-        
-        # Initialize about page from here
-        cats = g_PAGE_CAT['about']
+
         l_about = {}
-        for cat in cats:
-            # get all articles of this category
+        for cat in page_cat['about']:
             articles = dbm.get_articles(cat)
             if articles:
                 log.debug(f"Found {len(articles)} articles in category '{cat}'")
@@ -207,79 +168,169 @@ def init_globals():
             else:
                 log.debug(f"No articles found in category '{cat}'")
         l_page['about'] = l_about
-        
-        # Add page content to global page dictionary
-        g_PAGE[idx] = l_page
-    
-    # Set page content for current language
-    key = g_L10N_options.index(g_loc_key)
-    g_home = g_PAGE[key]['home']
-    g_faq = g_PAGE[key]['faq']
-    g_about = g_PAGE[key]['about']
-    
-    return (backend, ft_svr, git_ftpe, git_subs, g_L10N, g_L10N_options,
-            g_loc_key, g_loc, g_MENU, g_menu, g_PAGE, g_PAGE_CAT, g_home, g_faq, g_about)
-    
+
+        pages[idx] = l_page
+    return pages
+
+
+def init_globals():
+    """
+    Reload shared catalogs and process config.
+
+    Builds the new catalogs first, then swaps them in under a lock so a
+    request never observes a half-updated language table. Does not select
+    the active request language; that lives on flask.g.
+    """
+    global g_L10N, g_L10N_options, g_MENU, g_PAGE, g_PAGE_CAT, g_default_loc_key
+    global backend, ft_svr, git_ftpe, git_subs
+
+    new_backend = os.getenv("DB_SVR", "sqlite3")
+    log.debug(f"DB_SVR import: {new_backend}")
+
+    new_ft_svr = os.getenv("FT_SVR", "https://crappie-on-kingfish.ngrok-free.app")
+    log.debug(f"FamilyTreesPE Server: {new_ft_svr}")
+    new_git_ftpe = os.getenv("GIT_FTPE", "https://github.com/mkaoy2k/ftpe.git")
+    log.debug(f"ftpe GitHub Server: {new_git_ftpe}")
+    new_git_subs = os.getenv("GIT_SUBS", "https://github.com/mkaoy2k/subs.git")
+    log.debug(f"subs GitHub Server: {new_git_subs}")
+
+    new_l10n = load_L10N()
+    new_options = list(new_l10n.keys())
+
+    new_default = os.getenv("L10N")
+    if new_default not in new_l10n:
+        raise KeyError(f"L10N={new_default!r} is not one of {new_options}")
+    log.debug(f"Default L10N='{new_default}'...")
+
+    article_window = int(os.getenv("ARTICLE_WINDOW", "7"))
+    log.debug(f"ARTICLE_WINDOW: {article_window}")
+
+    f_menu = os.getenv("OPS_MENU_FILE", "ops_menu.json")
+    new_menu = load_menu(f_menu)
+    if new_default not in new_menu:
+        raise KeyError(f"L10N={new_default!r} is missing from menu file {f_menu}")
+
+    f_page_cat = os.getenv("OPS_PAGE_CAT", "page_category.json")
+    new_page_cat = load_page_cat(f_page_cat)
+    log.debug(f"Page categories: {new_page_cat}")
+
+    new_page = _load_page_content(new_page_cat, new_options, article_window)
+
+    with _catalog_lock:
+        backend = new_backend
+        ft_svr = new_ft_svr
+        git_ftpe = new_git_ftpe
+        git_subs = new_git_subs
+        g_L10N = new_l10n
+        g_L10N_options = new_options
+        g_default_loc_key = new_default
+        g_MENU = new_menu
+        g_PAGE_CAT = new_page_cat
+        g_PAGE = new_page
+
+
+def catalog_snapshot():
+    """Return the current shared catalogs as one consistent set of references."""
+    with _catalog_lock:
+        return g_default_loc_key, g_L10N, g_L10N_options, g_MENU, g_PAGE
+
+
+def bind_request_locale(lang):
+    """
+    Copy one language's strings onto flask.g for this request only.
+
+    Each request has its own g, so overlapping requests cannot observe
+    each other's language, menu, or page strings.
+    """
+    default_key, l10n, options, menu_all, pages = catalog_snapshot()
+    if lang not in options:
+        lang = default_key
+    g.loc_key = lang
+    g.loc = l10n[lang]
+    g.menu = menu_all[lang]
+    g.options = options
+    page = pages[options.index(lang)]
+    g.home = page['home']
+    g.faq = page['faq']
+    g.about = page['about']
+
+
+def remember_request_lang(lang):
+    """Keep lang on this request's session and on the response cookie."""
+    session['current_lang'] = lang
+    g.lang_cookie = lang
+
+
 def get_template_context():
     """Return template context for all view functions"""
     return {
-        'menu': g_menu,
-        'options': g_L10N_options,
+        'menu': g.menu,
+        'options': g.options,
         'release': os.getenv("RELEASE", ""),
-        'settings': g_loc['SETTINGS'],
-        'admin': g_loc['HOME_HTML_T4_TEAM'],
+        'settings': g.loc['SETTINGS'],
+        'admin': g.loc['HOME_HTML_T4_TEAM'],
         'admin_email': os.getenv("DB_ADMIN", ""),
         'office_days': os.getenv("OFFICE_DAYS", "Monday - Friday"),
         'office_hours': os.getenv("OFFICE_HOURS", "9:00 AM - 5:00 PM (PST)"),
         'mailing_address': os.getenv("MAILING_ADDRESS", ""),
         'mailing_city': os.getenv("MAILING_CITY", ""),
         'mailing_country': os.getenv("MAILING_COUNTRY", ""),
-        'your_language': g_loc['YOUR_LANGUAGE'],
-        'subscribe': g_loc['SUBSCRIBE'],
-        'unsubscribe': g_loc['UNSUBSCRIBE'],
-        'email_subscription': g_loc['EMAIL_SUBSCRIPTION'],
-        'motto_btn': g_loc['HOME_HTML_H2'],
-        'motto': g_loc['HOME_HTML_MOTTO'],
+        'your_language': g.loc['YOUR_LANGUAGE'],
+        'subscribe': g.loc['SUBSCRIBE'],
+        'unsubscribe': g.loc['UNSUBSCRIBE'],
+        'email_subscription': g.loc['EMAIL_SUBSCRIPTION'],
+        'motto_btn': g.loc['HOME_HTML_H2'],
+        'motto': g.loc['HOME_HTML_MOTTO'],
         'ops_svr': os.getenv("OPS_SVR", "http://localhost:5566"),
-        'current_lang': g_loc_key  # Use global variable instead of session
+        'current_lang': g.loc_key
     }
-    
+
 @app.before_request
 def before_request():
-    """Execute before each request"""
-    global g_loc_key, g_loc, g_menu, g_home, g_faq, g_about, g_PAGE
-    
-    # Ensure current_lang exists in session
-    if 'current_lang' not in session:
-        session['current_lang'] = g_loc_key
-    else:
-        # Ensure global variable matches language in session
-        if session['current_lang'] != g_loc_key and session['current_lang'] in g_L10N_options:
-            try:
-                g_loc_key = session['current_lang']
-                g_loc = g_L10N[g_loc_key]
-                g_menu = g_MENU[g_loc_key]
-                
-                # Update page content
-                key = g_L10N_options.index(g_loc_key)
-                g_home = g_PAGE[key]['home']
-                g_faq = g_PAGE[key]['faq']
-                g_about = g_PAGE[key]['about']
-            except Exception as e:
-                log.error(f"Language switch error: {str(e)}")
-                
+    """Bind this request's language from the cookie or session onto flask.g."""
+    default_key, _l10n, options, _menu_all, _pages = catalog_snapshot()
+    # The cookie is what a browser on plain HTTP actually sends back.
+    lang = request.cookies.get(LANG_COOKIE) or session.get('current_lang')
+    if lang not in options:
+        lang = default_key
+    try:
+        bind_request_locale(lang)
+    except Exception as e:
+        log.error(f"Language switch error: {str(e)}")
+        bind_request_locale(default_key)
+    if session.get('current_lang') != g.loc_key or request.cookies.get(LANG_COOKIE) != g.loc_key:
+        remember_request_lang(g.loc_key)
+
+
+@app.after_request
+def persist_language_cookie(response):
+    """Send the language cookie when this request selected or corrected it."""
+    lang = getattr(g, 'lang_cookie', None)
+    if not lang:
+        return response
+    response.set_cookie(
+        LANG_COOKIE,
+        lang,
+        max_age=LANG_COOKIE_MAX_AGE,
+        httponly=True,
+        samesite='Lax',
+        secure=False,
+        path='/',
+    )
+    return response
+ 
 @app.route("/")
 def home():
     """Home page"""
     context = get_template_context()
-    t1 = g_loc['HOME_HTML_T1']
-    t2 = g_loc['HOME_HTML_T2']
-    t3 = g_loc['HOME_HTML_T3']
+    t1 = g.loc['HOME_HTML_T1']
+    t2 = g.loc['HOME_HTML_T2']
+    t3 = g.loc['HOME_HTML_T3']
     
     # Check if Story has content, if not use default values
     story_data = {
-        't2_title': g_loc['HOME_HTML_NO_STORY_TITLE'],
-        't2_content': g_loc['HOME_HTML_NO_STORY_CONTENT'],
+        't2_title': g.loc['HOME_HTML_NO_STORY_TITLE'],
+        't2_content': g.loc['HOME_HTML_NO_STORY_CONTENT'],
         't2_image': '',
         't2_image_alt': '',
         't2_author': '',
@@ -288,15 +339,15 @@ def home():
     }
     
     try:
-        if g_home["Story"] and len(g_home["Story"]) > 0:
+        if g.home["Story"] and len(g.home["Story"]) > 0:
             story_data = {
-                't2_title': g_home["Story"][0].get('title', g_loc['HOME_HTML_NO_STORY_TITLE']),
-                't2_content': g_home["Story"][0].get('content', g_loc['HOME_HTML_NO_STORY_CONTENT']),
-                't2_image': g_home["Story"][0].get('image_url', ''),
-                't2_image_alt': g_home["Story"][0].get('image_alt', ''),
-                't2_author': g_home["Story"][0].get('author', ''),
-                't2_src_url': g_home["Story"][0].get('src_url', ''),
-                't2_source': g_home["Story"][0].get('source', '')
+                't2_title': g.home["Story"][0].get('title', g.loc['HOME_HTML_NO_STORY_TITLE']),
+                't2_content': g.home["Story"][0].get('content', g.loc['HOME_HTML_NO_STORY_CONTENT']),
+                't2_image': g.home["Story"][0].get('image_url', ''),
+                't2_image_alt': g.home["Story"][0].get('image_alt', ''),
+                't2_author': g.home["Story"][0].get('author', ''),
+                't2_src_url': g.home["Story"][0].get('src_url', ''),
+                't2_source': g.home["Story"][0].get('source', '')
             }
     
     except Exception as e:
@@ -304,16 +355,16 @@ def home():
     
     context.update({
         'release': os.getenv("RELEASE", ""),
-        'header': g_loc['HOME_HTML_H1'],
+        'header': g.loc['HOME_HTML_H1'],
         't1': t1,
-        't1_articles': g_home.get("News") or [
+        't1_articles': g.home.get("News") or [
             {
-                'title': g_loc.get('HOME_HTML_NO_NEWS_TITLE', 'No News Available'),
-                'content': g_loc.get('HOME_HTML_NO_NEWS_CONTENT', 'Check back later for updates.')
+                'title': g.loc.get('HOME_HTML_NO_NEWS_TITLE', 'No News Available'),
+                'content': g.loc.get('HOME_HTML_NO_NEWS_CONTENT', 'Check back later for updates.')
             }
         ],
-        'author_label': g_loc['HTML_AUTHOR_LABEL'],
-        'source_label': g_loc['HTML_SOURCE_LABEL'],
+        'author_label': g.loc['HTML_AUTHOR_LABEL'],
+        'source_label': g.loc['HTML_SOURCE_LABEL'],
         't2': t2,
         't2_title': story_data['t2_title'],
         't2_content': story_data['t2_content'],
@@ -323,14 +374,14 @@ def home():
         't2_src_url': story_data['t2_src_url'],
         't2_source': story_data['t2_source'],
         't3': t3,
-        't3_article': g_home.get("Events") or [
+        't3_article': g.home.get("Events") or [
             {
-                'title': g_loc.get('HOME_HTML_NO_EVENT_TITLE', 'No Events Available'),
-                'content': g_loc.get('HOME_HTML_NO_EVENT_CONTENT', 'Check back later for updates.')
+                'title': g.loc.get('HOME_HTML_NO_EVENT_TITLE', 'No Events Available'),
+                'content': g.loc.get('HOME_HTML_NO_EVENT_CONTENT', 'Check back later for updates.')
             }
         ],
-        't4_greeting': g_loc['HOME_HTML_T4_GREETING'],
-        't4_team': g_loc['HOME_HTML_T4_TEAM'],
+        't4_greeting': g.loc['HOME_HTML_T4_GREETING'],
+        't4_team': g.loc['HOME_HTML_T4_TEAM'],
         'ft_url': ft_svr,
         'title': 'home'
     })
@@ -339,16 +390,15 @@ def home():
 @app.route("/faq")
 def faq():
     """FAQ page"""
-    global g_loc, g_faq
     
     context = get_template_context()
     
     # Get the articles for the current language's FAQ category
-    faq_articles = g_faq['FAQ']
+    faq_articles = g.faq['FAQ']
     
     context.update({
         'release': os.getenv("RELEASE", ""),
-        'header': g_loc['FAQ_HTML_H1'],
+        'header': g.loc['FAQ_HTML_H1'],
         'questions': [article['title'] for article in faq_articles],
         'answers': [article['content'] for article in faq_articles],
         'authors': [article['author'] for article in faq_articles],
@@ -361,29 +411,28 @@ def faq():
 @app.route("/about")
 def about():
     """About page"""
-    global g_loc, g_about, git_ftpe, git_subs
     
     context = get_template_context()
     body = [None, None]
-    log.debug(f"Processing about page content. Found {len(g_about['About'])} articles")
+    log.debug(f"Processing about page content. Found {len(g.about['About'])} articles")
     
     # Log all article titles for debugging
-    for article in g_about['About']:
+    for article in g.about['About']:
         log.debug(f"Article title: '{article['title']}' (length: {len(article['content'])} chars)")
     
     # Match articles to expected sections
-    for article in g_about['About']:
-        if article['title'] == g_loc['ABOUT_INTRODUCTION_H2']:
+    for article in g.about['About']:
+        if article['title'] == g.loc['ABOUT_INTRODUCTION_H2']:
             body[0] = article['content']
             log.debug(f"Found introduction article. Content length: {len(body[0])} chars")
-        elif article['title'] == g_loc['ABOUT_REPOSITORY_H2']:
+        elif article['title'] == g.loc['ABOUT_REPOSITORY_H2']:
             body[1] = article['content']
             log.debug(f"Found repository article. Content length: {len(body[1])} chars")
     context.update({
         'release': os.getenv("RELEASE", ""),
-        'header': g_loc['ABOUT_HTML_H1'],
-        'introduction': g_loc['ABOUT_INTRODUCTION_H2'],
-        'repository': g_loc['ABOUT_REPOSITORY_H2'],
+        'header': g.loc['ABOUT_HTML_H1'],
+        'introduction': g.loc['ABOUT_INTRODUCTION_H2'],
+        'repository': g.loc['ABOUT_REPOSITORY_H2'],
         'body': body,
         'git_ftpe': git_ftpe,
         'git_subs': git_subs,
@@ -394,12 +443,11 @@ def about():
 @app.route("/privacy")
 def privacy():
     """Privacy Policy page"""
-    global g_loc
     
     context = get_template_context()
     context.update({
         'release': os.getenv("RELEASE", ""),
-        'header': g_loc.get('PRIVACY_HEADER', 'Privacy Policy'),
+        'header': g.loc.get('PRIVACY_HEADER', 'Privacy Policy'),
         'title': 'privacy',
         'admin': context['admin'],
         'admin_email': context['admin_email'],
@@ -410,12 +458,11 @@ def privacy():
 @app.route("/terms")
 def terms():
     """Terms of Service page"""
-    global g_loc
     
     context = get_template_context()
     context.update({
         'release': os.getenv("RELEASE", ""),
-        'header': g_loc.get('TERMS_HEADER', 'Terms of Service'),
+        'header': g.loc.get('TERMS_HEADER', 'Terms of Service'),
         'title': 'terms',
         'admin': context['admin'],
         'admin_email': context['admin_email'],
@@ -428,7 +475,6 @@ def contact():
     from forms import ContactForm
     
     """Contact Us page"""
-    global g_loc
     
     context = get_template_context()
     message_sent = False
@@ -448,7 +494,7 @@ def contact():
         if not user:
             user_id = dbm.create_user(form_data['email'], dbm.Subscriber_State['in_contact'], lang=context['current_lang'])
             if not user_id:
-                flash(g_loc.get('ADD_CONTACT_ERROR', 'Contact not created/updated. Please try again later.'), 'danger')
+                flash(g.loc.get('ADD_CONTACT_ERROR', 'Contact not created/updated. Please try again later.'), 'danger')
                 return redirect(url_for('contact'))
         else:
             user_id = user['id']
@@ -483,11 +529,11 @@ def contact():
             else:
                 log.error(f"Failed to send contact email to {to_emails}")
             message_sent = True
-            flash(g_loc.get('CONTACT_SUCCESS', 'Your contact request has been sent. We will get back to you soon!'), 'success')
+            flash(g.loc.get('CONTACT_SUCCESS', 'Your contact request has been sent. We will get back to you soon!'), 'success')
             return redirect(url_for('contact'))
         else:
             log.error("Failed to create contact form article")
-            flash(g_loc.get('CONTACT_ERROR', 'Failed to send contact request. Please try again later.'), 'danger')
+            flash(g.loc.get('CONTACT_ERROR', 'Failed to send contact request. Please try again later.'), 'danger')
     
     # Initialize form_data with empty values if not set
     if 'form_data' not in locals():
@@ -502,7 +548,7 @@ def contact():
     context.update({
         'form': form,
         'release': os.getenv("RELEASE", ""),
-        'header': g_loc.get('CONTACT_HEADER', 'Contact Us'),
+        'header': g.loc.get('CONTACT_HEADER', 'Contact Us'),
         'title': 'contact',
         'admin': context['admin'],
         'admin_email': context['admin_email'],
@@ -513,11 +559,11 @@ def contact():
         'mailing_country': context['mailing_country'],
         'message_sent': message_sent,
         'form_labels': {
-            'name': g_loc.get('CONTACT_NAME', 'Your Name'),
-            'email': g_loc.get('CONTACT_EMAIL', 'Email Address'),
-            'subject': g_loc.get('CONTACT_SUBJECT', 'Subject'),
-            'message': g_loc.get('CONTACT_MESSAGE', 'Your Message'),
-            'submit': g_loc.get('CONTACT_SUBMIT', 'Send Message')
+            'name': g.loc.get('CONTACT_NAME', 'Your Name'),
+            'email': g.loc.get('CONTACT_EMAIL', 'Email Address'),
+            'subject': g.loc.get('CONTACT_SUBJECT', 'Subject'),
+            'message': g.loc.get('CONTACT_MESSAGE', 'Your Message'),
+            'submit': g.loc.get('CONTACT_SUBMIT', 'Send Message')
         }
     })
     return render_template('contact.html', **context)
@@ -567,7 +613,7 @@ def feedback():
             # Validate email format
             if not eu.validate_email(email):
                 log.warning(f"Invalid email address: {email}")
-                flash(f'{g_loc.get("EMAIL_INVALID", "Invalid email address")}', 'danger')
+                flash(f'{g.loc.get("EMAIL_INVALID", "Invalid email address")}', 'danger')
             else:
                 # Check if user is a subscriber, if not add them as pending
                 subscriber = dbm.get_subscriber(email)
@@ -581,12 +627,12 @@ def feedback():
                     }
                     if not dbm.add_or_update_subscriber(user_data):
                         log.error(f"Failed to add new subscriber: {email}")
-                        flash(f'{g_loc.get("ADD_SUB_ERROR", "Subscriber not created/updated. Please try again later.")}', 'danger')
+                        flash(f'{g.loc.get("ADD_SUB_ERROR", "Subscriber not created/updated. Please try again later.")}', 'danger')
                     else:
-                        flash(f'{g_loc.get("EMAIL_SUB_NEEDED", "Please check your email to confirm your subscription before submitting articles.")}', 'warning')
+                        flash(f'{g.loc.get("EMAIL_SUB_NEEDED", "Please check your email to confirm your subscription before submitting articles.")}', 'warning')
                 elif subscriber.get('is_active') != dbm.Subscriber_State['active']:  # Check if subscriber is not active
                     log.warning(f"Non-active subscriber attempted submission: {email}")
-                    flash(f'{g_loc.get("EMAIL_CONFIRM_NEEDED", f"Please confirm your email {email} before submitting content.")}', 'warning')
+                    flash(f'{g.loc.get("EMAIL_CONFIRM_NEEDED", f"Please confirm your email {email} before submitting content.")}', 'warning')
                 else:
                     # Only proceed with article creation if all validations pass
                     try:
@@ -627,15 +673,15 @@ def feedback():
                             else:
                                 log.error(f"Failed to send feedback email to {to_emails}")
                             
-                            flash(f'Ticket:{article_id}, {g_loc.get("FEEDBACK_SUCCESS", "Submitted successfully")}', 'success')
+                            flash(f'Ticket:{article_id}, {g.loc.get("FEEDBACK_SUCCESS", "Submitted successfully")}', 'success')
                             # Redirect to home page after successful submission
                             return redirect(url_for('home'))
                         else:
                             log.error("Failed to create article in database")
-                            flash(f'{g_loc.get("FEEDBACK_RETRY", "Article not created. Please try again later.")}', 'danger')
+                            flash(f'{g.loc.get("FEEDBACK_RETRY", "Article not created. Please try again later.")}', 'danger')
                     except Exception as e:
                         log.error(f"Error creating article: {str(e)}")
-                        flash(f'{g_loc.get("FEEDBACK_ERROR", "An error occurred. Please try again.")}', 'danger')
+                        flash(f'{g.loc.get("FEEDBACK_ERROR", "An error occurred. Please try again.")}', 'danger')
         else:
             log.warning(f"Form validation failed: {form.errors}")
             # Log each field's error for debugging
@@ -648,7 +694,7 @@ def feedback():
     
     # Update context with form data
     context.update({
-        'header': g_loc.get('FEEDBACK_HTML_H1', 'Submit Feedback'),
+        'header': g.loc.get('FEEDBACK_HTML_H1', 'Submit Feedback'),
         'title': 'feedback',
         'form': form,
     })
@@ -673,30 +719,19 @@ def set_l10n():
     """
     Set up language localization (L10N) routing
     """
-    global g_loc_key, g_loc, g_menu, g_faq, g_about, g_home
-    
     # Get language and page from URL parameters
     lang = request.args.get('lang')
     page = request.args.get('page', 'home')
-    
+
     if lang in g_L10N_options:
         try:
-            # reload global variables
+            # Refresh shared catalogs, then remember the choice on this session.
+            # The next request binds it onto flask.g. Nothing here is process-wide.
             init_globals()
-            # Update global variables
-            g_loc_key = lang
-            g_loc = g_L10N[lang]
-            g_menu = g_MENU[lang]
-            
-            # Update page content
-            key = g_L10N_options.index(lang)
-            g_faq = g_PAGE[key]['faq']
-            g_about = g_PAGE[key]['about']
-            g_home = g_PAGE[key]['home']
-            
-            # Save to session
-            session['current_lang'] = lang
-            
+            if lang not in g_L10N_options:
+                raise KeyError(lang)
+            bind_request_locale(lang)
+            remember_request_lang(g.loc_key)
         except Exception as e:
             log.error(f"Language switch error: {str(e)}")
     
@@ -718,7 +753,6 @@ def subscribe():
     Returns:
         Response: Redirect back to previous page and display operation result
     """
-    global g_loc_key
     
     # CSRF protection is automatically handled by Flask-WTF
     
@@ -739,10 +773,10 @@ def subscribe():
                     'email': email,
                     'is_active': dbm.Subscriber_State['pending'],
                     'token': token,
-                    'l10n': g_loc_key
+                    'l10n': g.loc_key
                 }
                 if dbm.add_or_update_subscriber(user_data):
-                    log.debug(f"Subscribed {email} with lang={g_loc_key}")
+                    log.debug(f"Subscribed {email} with lang={g.loc_key}")
                     flash(f'Please check {email} to confirm subscription.', 'info')
                 else:
                     flash(f'Failed to subscribe {email}. Please try again later.', 'danger')
@@ -768,7 +802,6 @@ def verify_email():
     """
     Verify email subscription/unsubscription
     """
-    global g_loc_key
     
     email = request.args.get('email')
     token = request.args.get('token')
@@ -791,10 +824,10 @@ def verify_email():
             'email': email,
             'is_active': dbm.Subscriber_State['active'],
             'token': token,
-            'l10n': g_loc_key
+            'l10n': g.loc_key
         }
         if dbm.add_or_update_subscriber(user_data):
-            log.debug(f"Subscribed {email} with lang={g_loc_key}")
+            log.debug(f"Subscribed {email} with lang={g.loc_key}")
             flash(f'{email} has been successfully subscribed to our newsletter!', 'success')
         else:
             flash(f'Failed to subscribe {email}. Please try again later.', 'danger')
@@ -811,57 +844,52 @@ def pub_newsletter():
     """
     retrieve active subscribers' emails from db and send newsletter
     """
-    global g_loc, g_home, g_loc_key, g_L10N, g_L10N_options
-    
-    lang = request.args.get('lang', g_loc_key)
+    lang = request.args.get('lang', g.loc_key)
     email = request.args.get('email')
     password = request.args.get('password')
-    
+
     if lang not in g_L10N_options:
         log.debug(f"Language not found: {lang}")
-        flash(f'{g_loc.get("PUB_HTML_FAILS", "Language not found")}', 'warning')
-        return redirect(url_for('home'))   
-    
-    # Show login page and check if user is admin     
+        flash(f'{g.loc.get("PUB_HTML_FAILS", "Language not found")}', 'warning')
+        return redirect(url_for('home'))
+
+    # Show login page and check if user is admin
     if not au.verify_admin(email, password):
         log.debug(f"Login failed")
-        flash(f'{g_loc.get("LOGIN", "login")} {g_loc.get("FAILED", "failed")}', 'warning')
+        flash(f'{g.loc.get("LOGIN", "login")} {g.loc.get("FAILED", "failed")}', 'warning')
         return redirect(url_for('login'))
-    
-    # reload global variables
+
+    # Refresh shared catalogs, then bind this request (and this session)
+    # to the newsletter language. Other requests keep their own flask.g.
     init_globals()
-    # Update global variables
-    g_loc_key = lang
-    g_loc = g_L10N[lang]
-            
-    # Update page content
-    key = g_L10N_options.index(lang)
-    g_home = g_PAGE[key]['home']
-    
-    # Save to session
-    session['current_lang'] = lang
+    if lang not in g_L10N_options:
+        log.debug(f"Language not found after refresh: {lang}")
+        flash(f'{g.loc.get("PUB_HTML_FAILS", "Language not found")}', 'warning')
+        return redirect(url_for('home'))
+    bind_request_locale(lang)
+    remember_request_lang(g.loc_key)
     users = dbm.get_subscribers(state='active', lang=lang)
     if not users:  # Handles both None and empty list
         log.debug(f"No active subscribers found for language: {lang}")
-        flash(f'{g_loc.get("NO_ACTIVE_SUBSCRIBERS", "No active subscribers found")}', 'warning')
+        flash(f'{g.loc.get("NO_ACTIVE_SUBSCRIBERS", "No active subscribers found")}', 'warning')
         return redirect(url_for('home'))
         
     emails = [user['email'] for user in users if user and 'email' in user]
     if not emails:  
         # In case all users in the list are invalid or missing email
         log.debug(f"No valid emails found for language: {lang}")
-        flash(f'{g_loc.get("NO_EMAILS_FOUND", "No valid emails found")}', 'danger')
+        flash(f'{g.loc.get("NO_EMAILS_FOUND", "No valid emails found")}', 'danger')
         return redirect(url_for('home'))
 
     context = get_template_context()
-    t1 = g_loc['HOME_HTML_T1']
-    t2 = g_loc['HOME_HTML_T2']
-    t3 = g_loc['HOME_HTML_T3']
+    t1 = g.loc['HOME_HTML_T1']
+    t2 = g.loc['HOME_HTML_T2']
+    t3 = g.loc['HOME_HTML_T3']
     
     # Prepare story data with safe defaults
     story_data = {
-        't2_title': g_loc.get('HOME_HTML_NO_STORY_TITLE', 'Featured Story'),
-        't2_content': g_loc.get('HOME_HTML_NO_STORY_CONTENT', 'No story content available'),
+        't2_title': g.loc.get('HOME_HTML_NO_STORY_TITLE', 'Featured Story'),
+        't2_content': g.loc.get('HOME_HTML_NO_STORY_CONTENT', 'No story content available'),
         't2_image': '',
         't2_image_alt': '',
         't2_author': '',
@@ -870,8 +898,8 @@ def pub_newsletter():
     }
     
     # Update story data if available
-    if 'Story' in g_home and isinstance(g_home['Story'], list) and len(g_home['Story']) > 0:
-        story = g_home['Story'][0]
+    if 'Story' in g.home and isinstance(g.home['Story'], list) and len(g.home['Story']) > 0:
+        story = g.home['Story'][0]
         story_data.update({
             't2_title': story.get('title', story_data['t2_title']),
             't2_content': story.get('content', story_data['t2_content']),
@@ -884,11 +912,11 @@ def pub_newsletter():
     
     # Prepare context with safe dictionary access
     context.update({
-        'header': g_loc.get('HOME_HTML_H1', 'Newsletter'),
-        'author_label': g_loc.get('HTML_AUTHOR_LABEL', 'Author'),
-        'source_label': g_loc.get('HTML_SOURCE_LABEL', 'Source'),
+        'header': g.loc.get('HOME_HTML_H1', 'Newsletter'),
+        'author_label': g.loc.get('HTML_AUTHOR_LABEL', 'Author'),
+        'source_label': g.loc.get('HTML_SOURCE_LABEL', 'Source'),
         't1': t1,
-        't1_articles': g_home.get('News', []),  # Default to empty list if 'News' key doesn't exist
+        't1_articles': g.home.get('News', []),  # Default to empty list if 'News' key doesn't exist
         't2': t2,
         't2_title': story_data['t2_title'],
         't2_content': story_data['t2_content'],
@@ -898,12 +926,12 @@ def pub_newsletter():
         't2_source': story_data['t2_source'],
         't2_src_url': story_data['t2_src_url'],
         't3': t3,
-        't3_articles': g_home.get('Events', []),  # Default to empty list if 'Events' key doesn't exist
-        't4_greeting': g_loc.get('HOME_HTML_T4_GREETING', 'Thank you for subscribing!'),
-        't4_team': g_loc.get('HOME_HTML_T4_TEAM', 'The Team'),
+        't3_articles': g.home.get('Events', []),  # Default to empty list if 'Events' key doesn't exist
+        't4_greeting': g.loc.get('HOME_HTML_T4_GREETING', 'Thank you for subscribing!'),
+        't4_team': g.loc.get('HOME_HTML_T4_TEAM', 'The Team'),
         'ft_url': ft_svr,
         'ops_svr': os.getenv("OPS_SVR", "http://localhost:5566"),
-        'title': g_loc.get('HOME_HTML_H1', 'Newsletter')
+        'title': g.loc.get('HOME_HTML_H1', 'Newsletter')
     })
     
     try:
@@ -920,16 +948,16 @@ def pub_newsletter():
         if eu.send_newsletter(g_fmail, emails, context):
             success_msg = f"Newsletter sent successfully to {len(emails)} recipients in language: {lang}"
             log.info(success_msg)
-            flash(g_loc.get("PUB_HTML_SUCCESS", "Newsletter sent successfully."), 'success')
+            flash(g.loc.get("PUB_HTML_SUCCESS", "Newsletter sent successfully."), 'success')
         else:
             error_msg = f"Failed to send newsletter for language: {lang}. Check logs for details."
             log.error(error_msg)
-            flash(g_loc.get("PUB_HTML_FAIL", "Failed to send newsletter. Please try again later."), 'danger')
+            flash(g.loc.get("PUB_HTML_FAIL", "Failed to send newsletter. Please try again later."), 'danger')
             
     except Exception as e:
         error_msg = f"Unexpected error while sending newsletter for language {lang}: {str(e)}"
         log.error(error_msg, exc_info=True)
-        flash(g_loc.get("PUB_HTML_FAIL", "An unexpected error occurred. Please contact support."), 'danger')
+        flash(g.loc.get("PUB_HTML_FAIL", "An unexpected error occurred. Please contact support."), 'danger')
         
     return redirect(url_for('home'))    
 
@@ -1005,9 +1033,10 @@ def server_settings():
     """
     Host, port, and waitress thread count.
 
-    Defaults match the previous `app.run` behavior: localhost and port 5566.
-    Thread count stays at 1 because `before_request` stores the active
-    language in module globals, so overlapping requests can mix languages.
+    Defaults match the previous `app.run` behavior: localhost, port 5566,
+    and one waitress thread. Active language is request-local, so
+    OPS_SVR_THREADS may be raised (4 is a reasonable small-site setting)
+    without mixing languages. The default stays 1 until the variable is set.
     """
     host = os.getenv("OPS_SVR_HOST", "127.0.0.1").strip() or "127.0.0.1"
 
@@ -1061,13 +1090,6 @@ def main(argv=None):
         app.run(host=host, port=port, debug=True)
         return
 
-    if threads != 1:
-        log.warning(
-            f"OPS_SVR_THREADS={threads}. before_request stores the active language "
-            "in module globals, so overlapping requests can mix languages. "
-            "Prefer 1 until that state is request-local."
-        )
-
     log.info(
         f"Starting FamilyTreesOps server (waitress) on http://{host}:{port} "
         f"(threads={threads})"
@@ -1081,7 +1103,7 @@ def main(argv=None):
         raise
     serve(app, host=host, port=port, threads=threads)
 
-# Initialize global variables
+# Load shared catalogs. Request language is bound later, per request.
 init_globals()
 
 if __name__ == "__main__":
