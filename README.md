@@ -48,7 +48,7 @@ FamilyTreesOps Journal System is a web service designed for families, allowing f
 
 2. **Install Dependencies**
 
-   `pyproject.toml` and `uv.lock` are the dependency set `uv run` uses. `requirements.txt` is an older full-environment freeze: it includes macOS-only packages such as `pyobjc`, and Flask itself is absent from that file.
+   `pyproject.toml` and `uv.lock` are what `uv sync` / `uv run` use. `requirements.txt` is that same default set, pinned for pip (Flask, waitress, and the rest of the lock). It does not include the optional gunicorn extra or macOS-only packages.
 
    ```bash
    uv sync
@@ -56,11 +56,19 @@ FamilyTreesOps Journal System is a web service designed for families, allowing f
 
    `uv sync` creates `.venv`. `uv run` uses it on macOS, Linux, and Windows.
 
+   The pip equivalent of that default set, on Python 3.13 or newer:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
    On Linux, if you want the optional gunicorn extra (see below):
 
    ```bash
    uv sync --extra gunicorn
    ```
+
+   gunicorn is not listed in `requirements.txt`.
 
 3. **Configure Environment Variables**
 
@@ -95,7 +103,7 @@ FamilyTreesOps Journal System is a web service designed for families, allowing f
 
 ## 🛠️ Running the System
 
-This repo has no systemd unit, Dockerfile, or cloud-host config. `requirements.txt` includes macOS frameworks (`pyobjc`), and sample pages link out through ngrok tunnels. The default server is **waitress**, which runs on macOS, Linux, and Windows. gunicorn is the Unix alternative (it imports `fcntl`, so the Windows path stays on waitress).
+This repo has no systemd unit, Dockerfile, or cloud-host config. Sample pages link out through ngrok tunnels. The default server is **waitress**, which runs on macOS, Linux, and Windows. gunicorn is the Unix alternative (it imports `fcntl`, so the Windows path stays on waitress).
 
 ### Production web server (default)
 
