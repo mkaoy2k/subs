@@ -108,7 +108,7 @@ That process loads `ops_svr:app` and serves it with waitress. Flask debug and th
 Equivalent, if you would rather invoke the WSGI server directly (expand the port yourself; this form does not read `OPS_SVR_PORT`):
 
 ```bash
-uv run waitress-serve --listen=127.0.0.1:5566 --threads=1 ops_svr:app
+uv run waitress-serve --listen=127.0.0.1:5566 --threads=4 ops_svr:app
 ```
 
 Listen address:
@@ -117,7 +117,7 @@ Listen address:
 - `OPS_SVR_PORT` (default `5566`)
 - `OPS_SVR_THREADS` (default `1`)
 
-Leave the thread count at 1. `before_request` writes the active language into module globals, so overlapping requests can serve the wrong language. Set `OPS_SVR_HOST=0.0.0.0` only when this process should accept connections on every interface.
+The active language, menu, and page strings are stored on Flask's `g` for the current request, so overlapping requests do not mix languages. The browser choice is a `current_lang` cookie (the session cookie stays `Secure`, so a browser on plain HTTP would otherwise drop it). `OPS_SVR_THREADS=4` is a reasonable small-site setting (waitress's own default). The process default stays `1` until you set the variable. The `waitress-serve` line above does not read `OPS_SVR_PORT` or `OPS_SVR_THREADS`; `--threads=4` is the recommended explicit value. Set `OPS_SVR_HOST=0.0.0.0` only when this process should accept connections on every interface.
 
 ### Linux: gunicorn
 
@@ -125,10 +125,10 @@ gunicorn is a Unix WSGI server and an optional extra. A plain `uv sync` leaves i
 
 ```bash
 uv sync --extra gunicorn
-uv run gunicorn --bind 127.0.0.1:5566 --workers 1 --threads 1 ops_svr:app
+uv run gunicorn --bind 127.0.0.1:5566 --workers 1 --threads 4 ops_svr:app
 ```
 
-Keep `--threads 1` (the sync worker). `--threads` greater than 1 switches gunicorn to a threaded worker and hits the same module-global language state. More than one sync worker is a separate process per worker; that avoids the threaded race, but concurrent SQLite access has not been validated here.
+`--workers 1 --threads 4` keeps one process (one in-memory catalog) and serves overlapping requests. Each request binds its own language, so threads above 1 do not mix languages. Extra workers are separate processes and also do not share request language; concurrent SQLite writes across those workers have not been load-tested. gunicorn stays an optional extra. On Windows, use waitress.
 
 ### Development server
 
@@ -159,7 +159,7 @@ uv run streamlit run subs_ui.py
 - `OPS_SVR`: Operations server URL (e.g., `http://localhost:5566`)
 - `OPS_SVR_HOST`: Interface the WSGI server binds (default `127.0.0.1`)
 - `OPS_SVR_PORT`: Operations server port (e.g., `5566`)
-- `OPS_SVR_THREADS`: waitress thread count (default `1`; see the warning above)
+- `OPS_SVR_THREADS`: waitress thread count (default `1`). Language is request-local; `4` is a reasonable setting once you want concurrent requests.
 - `OPS_DEV`: set to `1` to run Flask's development server instead of waitress
 - `RELEASE`: Application release version (e.g., `2.0`)
 - `L10N_FILE`: Localization file (default: `L10N.json`)
