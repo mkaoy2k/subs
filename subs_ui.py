@@ -235,7 +235,7 @@ def show_admin_sidebar():
                             st.error(f"️❌ {fu.get_function_name()}: {UI_TEXTS['CREATE']} {UI_TEXTS['ADMIN']} {UI_TEXTS['USER']} {UI_TEXTS['FAILED']}!")
             
         # Logout button at the bottom
-        if st.sidebar.button(f"{UI_TEXTS['LOGOUT']}", type="primary", use_container_width=True):
+        if st.sidebar.button(f"{UI_TEXTS['LOGOUT']}", type="primary", width="stretch"):
             st.session_state.authenticated = False
             st.session_state.user_email = None
             st.session_state.user_pass = None
@@ -267,7 +267,7 @@ def show_admin_sidebar():
                     df = pd.DataFrame(admin_list)
                     st.dataframe(
                         df,
-                        use_container_width=False,
+                        width="content",
                         hide_index=True  # Explicitly hide the index
                     )  
                 else:

@@ -288,7 +288,7 @@ def show_subscriber_page():
         col_query1, col_query2 = st.columns(2)
         
         with col_query1:
-            if st.button(f"{UI_TEXTS['QUERY']} {UI_TEXTS['BY_EMAIL']}", use_container_width=True):
+            if st.button(f"{UI_TEXTS['QUERY']} {UI_TEXTS['BY_EMAIL']}", width="stretch"):
                 user = dbm.get_subscriber(email)
                 if user is not None:
                     user_id = user.get('id')
@@ -299,7 +299,7 @@ def show_subscriber_page():
                     st.warning(f"️⚠️  {fu.get_function_name()}: Email '{email}' not found")
         
         with col_query2:
-            if st.button(f"{UI_TEXTS['QUERY']} {UI_TEXTS['BY_LANGUAGE']}", use_container_width=True):
+            if st.button(f"{UI_TEXTS['QUERY']} {UI_TEXTS['BY_LANGUAGE']}", width="stretch"):
                 users = dbm.get_subscribers(lang=l10n)
                 if users:
                     df = pd.DataFrame(users, columns=users[0].keys())
