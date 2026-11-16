@@ -185,13 +185,26 @@ def show_user_update_page():
                         index=available_languages.index(default_language) if default_language in available_languages else 0,
                         key="l10n_select"
                     )
+
+                current_family = user.get('family_id')
+                family_id = st.text_input(
+                    UI_TEXTS.get('FAMILY_ID', 'Family ID'),
+                    value='' if current_family is None else str(current_family),
+                    help=UI_TEXTS.get(
+                        'FAMILY_ID_HELP',
+                        'Must match the family id the operations server was started with.',
+                    ),
+                )
                 
                 # Submit button
                 if st.form_submit_button(f"{UI_TEXTS['UPDATE']} {UI_TEXTS['USER']} {UI_TEXTS['ID']}: {user_id}"):
+                    entered_family = (family_id or '').strip()
+                    stored_family = '' if current_family is None else str(current_family).strip()
                     update_data = {
                         'email': email if email != user.get('email') else None,
                         'is_active': is_active,
-                        'l10n': l10n if l10n != user.get('l10n') else None
+                        'l10n': l10n if l10n != user.get('l10n') else None,
+                        'family_id': entered_family if entered_family != stored_family else None,
                     }
                     
                     # Remove None values

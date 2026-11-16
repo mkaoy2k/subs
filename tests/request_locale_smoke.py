@@ -21,6 +21,7 @@ os.environ["DB_NAME"] = str(Path(_TMP) / "users.db")
 os.environ["L10N"] = "繁中"
 os.environ["FLASK_SECRET_KEY"] = "request-locale-smoke"
 os.environ["LOGGING"] = "ERROR"
+os.environ["FAMILY_ID"] = "locale-smoke"
 os.environ.pop("OPS_SVR_THREADS", None)
 
 import db_utils  # noqa: E402

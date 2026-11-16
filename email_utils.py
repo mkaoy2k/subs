@@ -283,6 +283,96 @@ def send_verification_email(mail, email, token, is_subscribe=True):
         log.error(f"Failed to prepare email: {str(e)}", exc_info=True)
         return False
 
+
+# Used when a catalog file cannot be read. Kept in both languages so the
+# instruction mail stays bilingual even if localization files are missing.
+_MEMBERSHIP_COPY_FALLBACK = {
+    "繁中": {
+        "subject": "請先向家族管理員登記後再訂閱",
+        "heading": "訂閱前請先完成家族登記",
+        "intro": "您以這個電子郵件地址申請訂閱本家族通訊。",
+        "action": "此地址尚未登記為本家族成員。請先聯絡對應的家族管理員，提供您的電子郵件地址與個人資料完成登記，之後才能訂閱。",
+        "admin_label": "家族管理員：",
+        "admin_unknown": "請向您的家族管理員登記。伺服器尚未設定管理員信箱。",
+        "ignore": "若您並未提出此申請，請忽略這封信。",
+        "closing": "祝安好",
+    },
+    "US": {
+        "subject": "Register with your family Admin before subscribing",
+        "heading": "Register before you subscribe",
+        "intro": "You asked to subscribe to this family journal with the email address below.",
+        "action": "This address is not registered as a member of this family. Contact the family Admin and register your email address together with your personal information before subscribing.",
+        "admin_label": "Family Admin:",
+        "admin_unknown": "Please register with your family Admin. This server has no admin email configured.",
+        "ignore": "If you did not ask to subscribe, you can ignore this email.",
+        "closing": "Best regards",
+    },
+}
+_MEMBERSHIP_COPY_KEYS = {
+    "subject": "SUB_NONMEMBER_SUBJECT",
+    "heading": "SUB_NONMEMBER_HEADING",
+    "intro": "SUB_NONMEMBER_INTRO",
+    "action": "SUB_NONMEMBER_ACTION",
+    "admin_label": "SUB_NONMEMBER_ADMIN",
+    "admin_unknown": "SUB_NONMEMBER_ADMIN_UNKNOWN",
+    "ignore": "SUB_NONMEMBER_IGNORE",
+    "closing": "SUB_NONMEMBER_CLOSING",
+}
+
+
+def _membership_copy():
+    """Traditional Chinese and English strings for the non-member email."""
+    catalogs = {}
+    try:
+        from funcUtils import load_L10N
+        catalogs = load_L10N() or {}
+    except Exception as e:
+        log.error(f"Could not load localization for the membership email: {e}")
+
+    localized = {}
+    for lang, fallbacks in _MEMBERSHIP_COPY_FALLBACK.items():
+        catalog = catalogs.get(lang) or {}
+        localized[lang] = {}
+        for field, key in _MEMBERSHIP_COPY_KEYS.items():
+            value = catalog.get(key)
+            if isinstance(value, str) and value.strip():
+                localized[lang][field] = value
+            else:
+                localized[lang][field] = fallbacks[field]
+    subject = f"{localized['繁中']['subject']} / {localized['US']['subject']}"
+    return subject, localized["繁中"], localized["US"]
+
+
+def send_membership_instruction_email(mail, email, admin_email=None):
+    """
+    Tell a non-member to register with the family Admin before subscribing.
+
+    The same letter is sent whether the address is unknown or belongs to a
+    different family. The body is Traditional Chinese and English.
+    """
+    log.debug(f"Preparing membership instruction email to {email}")
+    admin_email = (admin_email or "").strip()
+    try:
+        subject, zh, en = _membership_copy()
+        html = render_template(
+            "email/register_first.html",
+            email=email,
+            admin_email=admin_email,
+            app_name=Config.APP_NAME,
+            zh=zh,
+            en=en,
+        )
+        msg = Message(
+            subject=subject,
+            recipients=[email],
+            html=html,
+            sender=Config.MAIL_DEFAULT_SENDER,
+        )
+        return _send_mail(mail, msg)
+    except Exception as e:
+        log.error(f"Failed to prepare membership instruction email: {str(e)}", exc_info=True)
+        return False
+
 def send_email(mail, emails, subject, html):
     """
     Send email to the specified email addresses via Flask-Mail
