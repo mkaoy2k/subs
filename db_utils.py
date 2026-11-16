@@ -233,20 +233,37 @@ def normalize_family_id(value):
     return text or None
 
 
+def normalize_subscriber_email(email):
+    """
+    Strip and lowercase an address used by subscribe, confirm, and feedback.
+
+    Returns None when the value is missing or blank. Existing rows may still
+    be stored in mixed case; lookups compare the lowered form, and this flow
+    rewrites the stored address to the lowered form when that spelling is free.
+    SQLite LOWER() folds ASCII only, which matches ordinary email addresses.
+    """
+    if email is None or not isinstance(email, str):
+        return None
+    text = email.strip().lower()
+    return text or None
+
+
 def is_family_member(email, family_id) -> bool:
     """
     True when this email's user row is a member of family_id.
 
     The member record is the `user` table row looked up by email
     (`get_subscriber`). Membership is that row's family_id equaling
-    the server's family id. A missing row, a NULL family_id, and a
-    different family_id are all not members. Those cases are not
-    distinguished, so a caller cannot tell whether the address exists.
+    the server's family id. The address is matched case-insensitively.
+    A missing row, a NULL family_id, and a different family_id are all
+    not members. Those cases are not distinguished, so a caller cannot
+    tell whether the address exists.
     """
     expected = normalize_family_id(family_id)
-    if not expected or not email or not isinstance(email, str):
+    normalized = normalize_subscriber_email(email)
+    if not expected or not normalized:
         return False
-    user = get_subscriber(email)
+    user = get_subscriber(normalized)
     if not user:
         return False
     return normalize_family_id(user.get("family_id")) == expected
@@ -283,23 +300,54 @@ def add_or_update_subscriber(user_data: Dict[str, Any],
         missing_fields = [field for field in required_fields if field not in user_data]
         if missing_fields:
             raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
-        email = user_data.get('email')
+        email = normalize_subscriber_email(user_data.get('email'))
+        if not email:
+            raise ValueError("Missing required fields: email")
         is_active = user_data.get('is_active')
         token = user_data.get('token')
         lang = user_data.get('l10n')
         try:
             with get_db_connection() as conn:
-                # First check if user exists
-                cursor = conn.cursor()
-                cursor.execute(
-                    f"SELECT id FROM {db_tables['user']} WHERE email = ?",
-                    (email,)
-                )
-                existing_user = cursor.fetchone()
-            
+                existing_user = get_subscriber(email)
+
                 if existing_user and not update:
                     raise sqlite3.IntegrityError(f"Subscriber with email {email} already exists")
-                
+
+                if existing_user:
+                    # Update the row that matched case-insensitively. Writing the
+                    # lowered address is skipped when another row already uses it,
+                    # so a pre-existing case-variant pair is not collapsed.
+                    user_id = existing_user['id']
+                    stored_email = email
+                    taken = conn.execute(
+                        f"SELECT id FROM {db_tables['user']} WHERE email = ? AND id != ?",
+                        (email, user_id),
+                    ).fetchone()
+                    if taken:
+                        stored_email = existing_user['email']
+                    if lang:
+                        conn.execute(
+                            f"""
+                            UPDATE {db_tables['user']}
+                            SET email = ?, is_active = ?, token = ?, l10n = ?,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                            """,
+                            (stored_email, is_active, token, lang, user_id),
+                        )
+                    else:
+                        conn.execute(
+                            f"""
+                            UPDATE {db_tables['user']}
+                            SET email = ?, is_active = ?, token = ?,
+                                updated_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                            """,
+                            (stored_email, is_active, token, user_id),
+                        )
+                    conn.commit()
+                    return True
+
                 if lang:
                     conn.execute(f'''
                     INSERT INTO {db_tables['user']} (
@@ -361,13 +409,23 @@ def remove_subscriber(email):
             # Use 'inactive' state from Subscriber_State dictionary
             inactive_state = Subscriber_State['inactive']
             
+            normalized = normalize_subscriber_email(email)
+            if not normalized:
+                log.warning("Invalid email provided to remove_subscriber")
+                return False
+            # Match the lowered address, preferring a row already stored that way.
             cursor.execute(f'''
-            UPDATE {db_tables['user']} 
-            SET is_active = ?, 
+            UPDATE {db_tables['user']}
+            SET is_active = ?,
                 updated_at = CURRENT_TIMESTAMP,
                 token = NULL
-            WHERE email = ?
-            ''', (inactive_state, email))
+            WHERE id = (
+                SELECT id FROM {db_tables['user']}
+                WHERE LOWER(email) = ?
+                ORDER BY CASE WHEN email = ? THEN 0 ELSE 1 END, id ASC
+                LIMIT 1
+            )
+            ''', (inactive_state, normalized, normalized))
             conn.commit()
             
             if cursor.rowcount > 0:
@@ -381,12 +439,18 @@ def remove_subscriber(email):
         return False
 
 def verify_token(email, token):
-    """Verify subscription token"""
+    """Verify subscription token. The address match is case-insensitive."""
+    normalized = normalize_subscriber_email(email)
+    if not normalized or not token:
+        return False
     with get_db_connection() as conn:
         cursor = conn.execute(f'''
-            SELECT id FROM {db_tables['user']} 
-            WHERE email = ? AND token = ? ''',
-            (email, token)
+            SELECT id FROM {db_tables['user']}
+            WHERE LOWER(email) = ? AND token = ?
+            ORDER BY CASE WHEN email = ? THEN 0 ELSE 1 END, id ASC
+            LIMIT 1
+            ''',
+            (normalized, token, normalized)
         )
         result = cursor.fetchone()
         return result is not None
@@ -456,16 +520,21 @@ def get_subscriber(email):
         The dictionary includes all the fields in the 
         db_tables['user'] table.
     """
-    if not email or not isinstance(email, str):
+    normalized = normalize_subscriber_email(email)
+    if not normalized:
         log.warning("Invalid email provided to get_user")
         return None
-        
+
     with get_db_connection() as conn:
+        # Case-insensitive. If both "A@x.com" and "a@x.com" exist, prefer
+        # the row already stored in the normalized spelling, then the lowest id.
         cursor = conn.execute(f"""
-            SELECT * 
-            FROM {db_tables['user']} 
-            WHERE email = ?
-        """, (email,))
+            SELECT *
+            FROM {db_tables['user']}
+            WHERE LOWER(email) = ?
+            ORDER BY CASE WHEN email = ? THEN 0 ELSE 1 END, id ASC
+            LIMIT 1
+        """, (normalized, normalized))
         
         result = cursor.fetchone()
         if result:

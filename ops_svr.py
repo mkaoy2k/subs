@@ -28,13 +28,15 @@ Development — Flask's built-in server, debugger, and reloader:
     python ops_svr.py --dev --family_id <family_id>
     OPS_DEV=1 python ops_svr.py --family_id <family_id>
 
-`--family_id` overrides the FAMILY_ID environment variable. When both are
-omitted, any syntactically valid email may subscribe (the previous behavior),
-so `python ops_svr.py` and `waitress-serve ops_svr:app` keep working.
-`waitress-serve` does not parse arguments; set FAMILY_ID for that process.
+`--family_id` overrides the FAMILY_ID environment variable. If both are
+missing or blank, the process exits at import and does not serve. That
+covers `python ops_svr.py` and the `ops_svr:app` callable used by
+waitress-serve and gunicorn. Those WSGI servers do not parse
+`--family_id`; set FAMILY_ID for them.
 
 A member record is the `user` row for that email. Membership means the row's
-family_id equals the family id this process was started with.
+family_id equals the family id this process was started with. Email
+comparison in the subscribe, confirm, and feedback flow is case-insensitive.
 
 The module-level Flask callable for an external WSGI server is `app`
 (for example `ops_svr:app`). Do not use `flask run` in production;
@@ -51,6 +53,7 @@ from flask_wtf.csrf import CSRFProtect, generate_csrf, CSRFError
 from flask_mail import Mail
 import argparse
 import os
+import sys
 import threading
 import email_utils as eu
 import auth_utils as au
@@ -601,14 +604,18 @@ def feedback():
     # Initialize form based on request method
     if request.method == 'POST':
         log.debug(f"Form data received: {request.form}")
-        
+        submitted = MultiDict(request.form)
+        normalized_email = dbm.normalize_subscriber_email(submitted.get("email"))
+        if normalized_email:
+            submitted["email"] = normalized_email
+
         # Create form with data from request using formdata
-        form = ArticleForm(formdata=request.form, meta={'csrf': True}, lang=lang)
+        form = ArticleForm(formdata=submitted, meta={'csrf': True}, lang=lang)
         
         # Manually populate the form data
         for field in form:
-            if field.name in request.form:
-                field.data = request.form[field.name]
+            if field.name in submitted:
+                field.data = submitted[field.name]
         
         # Log form data before validation
         log.debug(f"Form data before validation: {form.data}")
@@ -627,31 +634,33 @@ def feedback():
             source = form.source.data
             src_url = form.source_url.data or None
             image_url = form.image_url.data or None
-            email = form.email.data
+            email = dbm.normalize_subscriber_email(form.email.data)
             
-            # Validate email format
-            if not eu.validate_email(email):
-                log.warning(f"Invalid email address: {email}")
+            # Validate email format. Membership uses the same lowered address.
+            if not email or not eu.validate_email(email):
+                log.warning(f"Invalid email address: {form.email.data}")
                 flash(f'{g.loc.get("EMAIL_INVALID", "Invalid email address")}', 'danger')
+            elif not dbm.is_family_member(email, active_family_id()):
+                # Same page message as subscribe. No user row is created.
+                log.info(
+                    "Feedback request is not a member of this family; "
+                    "sending registration instructions"
+                )
+                admin_email = os.getenv("DB_ADMIN", "")
+                if eu.send_membership_instruction_email(
+                    g_fmail, email, admin_email=admin_email
+                ):
+                    _flash_subscription_next_step(email)
+                else:
+                    _flash_subscription_send_failed()
             else:
-                # Check if user is a subscriber, if not add them as pending
                 subscriber = dbm.get_subscriber(email)
-                if not subscriber:
-                    log.info(f"New subscriber detected: {email}, adding to pending")
-                    user_data = {
-                        'email': email,
-                        'is_active': dbm.Subscriber_State['pending'],
-                        'token': 'pending_verification',
-                        'l10n': lang
-                    }
-                    if not dbm.add_or_update_subscriber(user_data):
-                        log.error(f"Failed to add new subscriber: {email}")
-                        flash(f'{g.loc.get("ADD_SUB_ERROR", "Subscriber not created/updated. Please try again later.")}', 'danger')
-                    else:
-                        flash(f'{g.loc.get("EMAIL_SUB_NEEDED", "Please check your email to confirm your subscription before submitting articles.")}', 'warning')
-                elif subscriber.get('is_active') != dbm.Subscriber_State['active']:  # Check if subscriber is not active
-                    log.warning(f"Non-active subscriber attempted submission: {email}")
-                    flash(f'{g.loc.get("EMAIL_CONFIRM_NEEDED", f"Please confirm your email {email} before submitting content.")}', 'warning')
+                if not subscriber or subscriber.get('is_active') != dbm.Subscriber_State['active']:
+                    # A member who is not an active subscriber sees the same
+                    # page message as a non-member. The letter is the
+                    # verification mail, and no article is stored.
+                    log.info("Family member must confirm subscription before submitting feedback")
+                    _start_subscription(email)
                 else:
                     # Only proceed with article creation if all validations pass
                     try:
@@ -775,11 +784,13 @@ def subscribe():
     
     # CSRF protection is automatically handled by Flask-WTF
     
-    email = request.form.get('email')
+    raw_email = request.form.get('email')
+    email = dbm.normalize_subscriber_email(raw_email)
     action = request.form.get('action')
     
-    if not eu.validate_email(email):
-        flash(f'{email} is not a valid email address', 'danger')
+    if not email or not eu.validate_email(email):
+        shown = email or raw_email
+        flash(f'{shown} is not a valid email address', 'danger')
         return redirect(request.referrer or url_for('home'))
     
     try:
@@ -787,7 +798,7 @@ def subscribe():
             family_id = active_family_id()
             # Unknown addresses and members of another family take the same
             # branch and the same page message. Only the letter differs.
-            if family_id and not dbm.is_family_member(email, family_id):
+            if not dbm.is_family_member(email, family_id):
                 log.info(
                     "Subscription request is not a member of this family; "
                     "sending registration instructions"
@@ -800,7 +811,7 @@ def subscribe():
                 else:
                     _flash_subscription_send_failed()
             else:
-                _start_subscription(email, family_id)
+                _start_subscription(email)
         else:
             # For unsubscribing, we can send a verification email or unsubscribe directly
             # For security, we send a verification email here
@@ -822,7 +833,7 @@ def verify_email():
     Verify email subscription/unsubscription
     """
     
-    email = request.args.get('email')
+    email = dbm.normalize_subscriber_email(request.args.get('email'))
     token = request.args.get('token')
     action = request.args.get('action')
     
@@ -840,7 +851,7 @@ def verify_email():
     # Handle subscription/unsubscription
     if action == 'subscribe':
         family_id = active_family_id()
-        if family_id and not dbm.is_family_member(email, family_id):
+        if not family_id or not dbm.is_family_member(email, family_id):
             # The link already proved they can read the mailbox. Do not
             # activate, and do not clear the token, so an admin can register
             # the address and the same link can be used again.
@@ -1062,8 +1073,16 @@ def _env_truthy(name):
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+FAMILY_ID_REQUIRED = (
+    "FamilyTreesOps requires a family id and will not start without one. "
+    "Pass --family_id <family_id>, or set FAMILY_ID in the environment (.env). "
+    "waitress-serve and gunicorn load ops_svr:app and do not read --family_id; "
+    "set FAMILY_ID for those processes."
+)
+
+
 def active_family_id():
-    """The family id gating subscription, or None when subscription is open."""
+    """The family id this process was started with, or None if it is unset."""
     family_id = app.config.get("FAMILY_ID")
     if family_id is None:
         return None
@@ -1071,25 +1090,41 @@ def active_family_id():
     return text or None
 
 
+def cli_family_id(argv=None):
+    """
+    Read --family_id from argv.
+
+    Used at import so `python ops_svr.py --family_id <id>` can satisfy the
+    startup check before main() parses arguments. waitress-serve and gunicorn
+    do not pass this flag through to the app.
+    """
+    if argv is None:
+        argv = sys.argv[1:]
+    for index, arg in enumerate(argv):
+        if arg == "--family_id" and index + 1 < len(argv):
+            return argv[index + 1]
+        if arg.startswith("--family_id="):
+            return arg.split("=", 1)[1]
+    return None
+
+
 def configure_family_id(cli_value=None):
     """
     Choose the family this process serves.
 
     A non-blank --family_id wins. Otherwise FAMILY_ID from the environment
-    (including .env) is used. When both are blank, FAMILY_ID is cleared and
-    subscription stays open to any valid email.
+    (including .env) is used. When both are blank, raise SystemExit. The
+    process does not serve with open subscription.
     """
     if cli_value is not None and str(cli_value).strip():
         chosen = str(cli_value).strip()
     else:
         chosen = os.getenv("FAMILY_ID", "").strip() or None
     app.config["FAMILY_ID"] = chosen
-    if chosen:
-        log.info(f"Family subscription gate enabled for family_id={chosen}")
-    else:
-        log.info(
-            "No family_id configured; subscription stays open to any valid email"
-        )
+    if not chosen:
+        log.error(FAMILY_ID_REQUIRED)
+        raise SystemExit(FAMILY_ID_REQUIRED)
+    log.info(f"Family subscription gate enabled for family_id={chosen}")
     return chosen
 
 
@@ -1105,8 +1140,9 @@ def build_parser():
         "--family_id",
         default=None,
         help=(
-            "Only user rows whose family_id equals this value may subscribe. "
-            "Overrides FAMILY_ID. Omit both to allow any valid email."
+            "Family this server serves. Required unless FAMILY_ID is set. "
+            "Only user rows whose family_id equals this value may subscribe "
+            "or submit feedback. Overrides FAMILY_ID."
         ),
     )
     return parser
@@ -1131,19 +1167,16 @@ def _flash_subscription_send_failed():
     )
 
 
-def _start_subscription(email, family_id):
+def _start_subscription(email):
     """
     Send the existing verification mail and store the pending token.
 
-    family_id is only used to pick the page message. The token update does
-    not change user.family_id.
+    The address is the normalized form. The update does not change
+    user.family_id. The page message matches the non-member message.
     """
     token = eu.generate_verification_token()
     if not eu.send_verification_email(g_fmail, email, token, is_subscribe=True):
-        if family_id:
-            _flash_subscription_send_failed()
-        else:
-            flash('Failed to send verification email. Please try again later.', 'danger')
+        _flash_subscription_send_failed()
         return
 
     user_data = {
@@ -1153,17 +1186,11 @@ def _start_subscription(email, family_id):
         'l10n': g.loc_key
     }
     if not dbm.add_or_update_subscriber(user_data):
-        if family_id:
-            _flash_subscription_send_failed()
-        else:
-            flash(f'Failed to subscribe {email}. Please try again later.', 'danger')
+        _flash_subscription_send_failed()
         return
 
     log.debug(f"Subscribed {email} with lang={g.loc_key}")
-    if family_id:
-        _flash_subscription_next_step(email)
-    else:
-        flash(f'Please check {email} to confirm subscription.', 'info')
+    _flash_subscription_next_step(email)
 
 
 def server_settings():
@@ -1235,10 +1262,10 @@ def main(argv=None):
         raise
     serve(app, host=host, port=port, threads=threads)
 
-# FAMILY_ID from the environment applies to waitress-serve ops_svr:app,
-# which does not go through main(). main() overrides this when --family_id
-# is passed. Request language is bound later, per request.
-configure_family_id(None)
+# Fail at import when neither --family_id nor FAMILY_ID is set, including
+# waitress-serve and gunicorn, which load ops_svr:app and never call main().
+# main() applies the parsed flag again. Request language is bound later.
+configure_family_id(cli_family_id())
 init_globals()
 
 if __name__ == "__main__":

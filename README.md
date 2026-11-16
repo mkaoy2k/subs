@@ -111,17 +111,13 @@ This repo has no systemd unit, Dockerfile, or cloud-host config. Sample pages li
 uv run python ops_svr.py --family_id <family_id>
 ```
 
-`<family_id>` is the family this process serves. Only a person whose `user.family_id` equals that value may subscribe. The same value can be set with `FAMILY_ID` in `.env`; `--family_id` overrides it.
+`<family_id>` is required. It is the family this process serves. Only a person whose `user.family_id` equals that value may subscribe or submit feedback. The same value can be set with `FAMILY_ID` in `.env`; `--family_id` overrides it.
 
-Leave both unset to keep the previous behavior (any syntactically valid email may subscribe):
-
-```bash
-uv run python ops_svr.py
-```
+If both are missing or blank, the process exits before it listens. The error names `--family_id` and `FAMILY_ID`. `python ops_svr.py` with neither set does not start.
 
 That process loads `ops_svr:app` and serves it with waitress. Flask debug and the reloader stay off, and Werkzeug's development-server warning stays silent.
 
-`waitress-serve ops_svr:app` and `gunicorn ops_svr:app` do not parse `--family_id`. Set `FAMILY_ID` in the environment for those processes.
+`waitress-serve ops_svr:app` and `gunicorn ops_svr:app` do not parse `--family_id`. They import `ops_svr:app`, and that import exits the same way when `FAMILY_ID` is blank. Set `FAMILY_ID` in the environment for those processes.
 
 Equivalent, if you would rather invoke the WSGI server directly (expand the port yourself; this form does not read `OPS_SVR_PORT`):
 
@@ -162,9 +158,9 @@ or:
 OPS_DEV=1 uv run python ops_svr.py --family_id <family_id>
 ```
 
-`--family_id` is optional here too. Omit it, and leave `FAMILY_ID` unset, for open subscription.
+The development server exits too when no family id is set.
 
-`flask --app ops_svr run` is the development server as well. Production stays `uv run python ops_svr.py`.
+`flask --app ops_svr run` is the development server as well. It imports `ops_svr:app`, so it also exits when no family id is set. Production stays `uv run python ops_svr.py --family_id <family_id>`, or the same command with `FAMILY_ID` set.
 
 ### Start Admin Interface (For Admins)
 
@@ -174,7 +170,9 @@ uv run streamlit run subs_ui.py
 
 ## Family membership
 
-Member records are rows in the `user` table (`DB_NAME`, default `data/users.db`). There is no separate members table in this app. Lookup is by email (`get_subscriber`). A person is a member of the family this server was started with when `user.family_id` equals that id. The comparison trims surrounding whitespace and then matches exactly, including case. `"12"` matches a value stored as the integer 12. Email lookup stays case-sensitive, which is how the existing query works.
+Member records are rows in the `user` table (`DB_NAME`, default `data/users.db`). There is no separate members table in this app. Lookup is by email (`get_subscriber`). A person is a member of the family this server was started with when `user.family_id` equals that id. The family-id comparison trims surrounding whitespace and then matches exactly, including case. `"12"` matches a value stored as the integer 12.
+
+Addresses in subscribe, confirm, unsubscribe, and feedback are stripped and compared in lowercase. `Member@Example.com` matches a row stored as `member@example.com`. When this flow updates that row, it rewrites the stored address to the lowercase form unless another row already uses that exact spelling. SQLite's unique index on `email` is case-sensitive, so two rows that differ only by case can already exist. Lookup then prefers the row whose spelling is already lowercase, otherwise the lowest id. The extra row is not deleted. SQLite `LOWER()` folds ASCII letters; that covers ordinary email addresses. Password-reset lookups are unchanged and still match the stored spelling exactly. `get_subscriber` is shared with the contact form, so that lookup is case-insensitive too; the contact form does not rewrite the stored address.
 
 `user.family_id` is added on startup for databases created before this column existed. New rows leave it empty until an admin sets it. In the admin UI (User Management), the Family ID field writes that column. A family Admin registers the person's email and personal information there first.
 
@@ -182,11 +180,13 @@ On `POST /subscribe` the address is checked with the existing email-format check
 
 - A member receives the existing verification email. Confirming it activates the subscription. The update does not change `family_id`.
 - Anyone else receives one instruction email, in Traditional Chinese and English, telling them to contact the family Admin (`DB_ADMIN`) and register their email and personal information before subscribing. No user row is created, and an existing row for a different family is left unchanged.
-- Unsubscribe is unchanged: a verification email is sent, and membership is not required.
+- Unsubscribe still sends a verification email and does not require membership. The address match is case-insensitive.
 
-The browser is shown the same “check your email” message for a member and for anyone else, in the language of the request (`SUB_CHECK_EMAIL` in `L10N_TW.json` and `L10N_US.json`). The letter itself is what differs. That is the privacy tradeoff: the mailbox owner learns whether this family has them registered, which the product requires, and the form response does not. Invalid email format is still rejected on the page, before any lookup. The two successful paths do different database work, so response time can still differ.
+The feedback form uses the same membership rule. Someone who is not a member does not get a pending user row. They receive the same instruction email, and the page shows the same check-your-email line as subscribe (`SUB_CHECK_EMAIL` in `L10N_TW.json` and `L10N_US.json`). A member who is not an active subscriber sees that same line and receives the verification email; no article is stored. An active member's article is accepted, and only that completed submission shows the success message.
 
-Confirming a verification link also re-checks membership when a family id is configured. If the address is no longer a member, the link does not activate the subscription and does not clear the token.
+The browser is shown the same check-your-email message for a member and for anyone else when the request does not finish an article or a confirmed subscription. The letter itself is what differs. That is the privacy tradeoff: the mailbox owner learns whether this family has them registered, which the product requires, and the form response does not. Invalid email format is still rejected on the page, before any lookup. The two mail paths do different database work, so response time can still differ.
+
+Confirming a verification link re-checks membership. If the address is not a member of the configured family, the link does not activate the subscription and does not clear the token. A missing family id also refuses activation. The process exits at startup when no family id is configured, so it does not serve that request.
 
 ```bash
 uv run python tests/family_subscribe_smoke.py
@@ -202,7 +202,7 @@ uv run python tests/request_locale_smoke.py
 - `OPS_SVR_PORT`: Operations server port (e.g., `5566`)
 - `OPS_SVR_THREADS`: waitress thread count (default `1`). Language is request-local; `4` is a reasonable setting once you want concurrent requests.
 - `OPS_DEV`: set to `1` to run Flask's development server instead of waitress
-- `FAMILY_ID`: family id this server accepts subscriptions for. `--family_id` overrides it. Unset (and no `--family_id`) keeps open subscription. See [Family membership](#family-membership).
+- `FAMILY_ID`: family id this server accepts subscriptions and feedback for. `--family_id` overrides it. The process exits when both are blank. See [Family membership](#family-membership).
 - `RELEASE`: Application release version (e.g., `2.0`)
 - `L10N_FILE`: Localization file (default: `L10N.json`)
 - `L10N`: Language code (e.g., `繁中`)

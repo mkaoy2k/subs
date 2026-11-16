@@ -4,8 +4,9 @@ Run from the repo root, with the project virtualenv:
 
     .venv/bin/python tests/family_subscribe_smoke.py
 
-Membership is the user row's family_id. When no family id is configured,
-any valid email can still start the old verification flow.
+Membership is the user row's family_id. The process refuses to start
+when no family id is configured. Email matching in this flow is
+case-insensitive.
 """
 
 import os
@@ -26,7 +27,7 @@ os.environ["DB_NAME"] = str(Path(_TMP) / "users.db")
 os.environ["L10N"] = "繁中"
 os.environ["FLASK_SECRET_KEY"] = "family-subscribe-smoke"
 os.environ["LOGGING"] = "ERROR"
-os.environ.pop("FAMILY_ID", None)
+os.environ["FAMILY_ID"] = "fam-1"
 os.environ.pop("DB_ADMIN", None)
 
 import db_utils  # noqa: E402
@@ -38,9 +39,6 @@ FAMILY = "fam-1"
 NEXT_STEP = "Please check {email} for the next step."
 NEXT_STEP_ZH = "請查看 {email} 以完成下一步。"
 SEND_FAILED = "Failed to send email. Please try again later."
-OPEN_CONFIRM = "Please check {email} to confirm subscription."
-
-
 def _alerts(body):
     """Flash text shown on the page after a redirect."""
     found = re.findall(r'role="alert">\s*(.*?)\s*<button', body, flags=re.S)
@@ -64,18 +62,33 @@ def _user(email):
     return db_utils.get_subscriber(email)
 
 
+def _count_users():
+    with db_utils.get_db_connection() as conn:
+        return conn.execute(
+            f"SELECT COUNT(*) FROM {db_utils.db_tables['user']}"
+        ).fetchone()[0]
+
+
+def _count_articles():
+    with db_utils.get_db_connection() as conn:
+        return conn.execute(
+            f"SELECT COUNT(*) FROM {db_utils.db_tables['article']}"
+        ).fetchone()[0]
+
+
 class FamilySubscribeSmokeTest(unittest.TestCase):
     def setUp(self):
         self._csrf = ops_svr.app.config.get("WTF_CSRF_ENABLED", True)
         self._family_env = os.environ.get("FAMILY_ID")
         ops_svr.app.config["WTF_CSRF_ENABLED"] = False
-        ops_svr.app.config["FAMILY_ID"] = None
+        os.environ["FAMILY_ID"] = FAMILY
+        ops_svr.app.config["FAMILY_ID"] = FAMILY
         with db_utils.get_db_connection() as conn:
             conn.execute(f"DELETE FROM {db_utils.db_tables['user']}")
             conn.commit()
 
     def tearDown(self):
-        ops_svr.app.config["FAMILY_ID"] = None
+        ops_svr.app.config["FAMILY_ID"] = FAMILY
         ops_svr.app.config["WTF_CSRF_ENABLED"] = self._csrf
         if self._family_env is None:
             os.environ.pop("FAMILY_ID", None)
@@ -94,7 +107,7 @@ class FamilySubscribeSmokeTest(unittest.TestCase):
             follow_redirects=True,
         )
 
-    def test_parser_accepts_family_id_and_still_defaults_open(self):
+    def test_parser_reads_family_id_and_cli_overrides_env(self):
         parser = ops_svr.build_parser()
         specified = parser.parse_args(["--family_id", "kao", "--dev"])
         self.assertEqual(specified.family_id, "kao")
@@ -102,16 +115,33 @@ class FamilySubscribeSmokeTest(unittest.TestCase):
         omitted = parser.parse_args([])
         self.assertIsNone(omitted.family_id)
         self.assertFalse(omitted.dev)
+        self.assertEqual(
+            ops_svr.cli_family_id(["--dev", "--family_id", "kao"]),
+            "kao",
+        )
+        self.assertEqual(ops_svr.cli_family_id(["--family_id=kao"]), "kao")
+        self.assertIsNone(ops_svr.cli_family_id(["--dev"]))
 
-    def test_configure_family_id_cli_overrides_env(self):
         os.environ["FAMILY_ID"] = "from-env"
         self.assertEqual(ops_svr.configure_family_id(None), "from-env")
         self.assertEqual(ops_svr.configure_family_id("  cli-id  "), "cli-id")
         self.assertEqual(ops_svr.app.config["FAMILY_ID"], "cli-id")
         self.assertEqual(ops_svr.configure_family_id("   "), "from-env")
+
+    def test_blank_family_id_refuses_to_start(self):
         os.environ["FAMILY_ID"] = "   "
-        self.assertIsNone(ops_svr.configure_family_id(None))
+        with self.assertRaises(SystemExit) as blank_env:
+            ops_svr.configure_family_id(None)
+        self.assertIn("requires a family id", str(blank_env.exception))
         self.assertIsNone(ops_svr.active_family_id())
+
+        os.environ.pop("FAMILY_ID", None)
+        with patch.object(ops_svr.app, "run") as run:
+            with self.assertRaises(SystemExit) as missing:
+                ops_svr.main([])
+            run.assert_not_called()
+        self.assertIn("FAMILY_ID", str(missing.exception))
+        self.assertIn("--family_id", str(missing.exception))
 
     def test_legacy_user_table_gains_family_id(self):
         legacy_dir = tempfile.mkdtemp(prefix="subs-legacy-")
@@ -151,6 +181,7 @@ class FamilySubscribeSmokeTest(unittest.TestCase):
         _insert_user("blank@example.com", None)
         _insert_user("numbered@example.com", 12)
         self.assertTrue(db_utils.is_family_member("member@example.com", "fam-1"))
+        self.assertTrue(db_utils.is_family_member("  MEMBER@example.com ", "fam-1"))
         self.assertTrue(db_utils.is_family_member("member@example.com", " fam-1 "))
         self.assertFalse(db_utils.is_family_member("member@example.com", "Fam-1"))
         self.assertFalse(db_utils.is_family_member("other@example.com", "fam-1"))
@@ -251,19 +282,28 @@ class FamilySubscribeSmokeTest(unittest.TestCase):
             [item.replace("stranger@example.com", "ADDR") for item in stranger_alerts],
         )
 
-    def test_open_gate_still_verifies_any_valid_email(self):
-        self.assertIsNone(ops_svr.active_family_id())
+    def test_subscribe_matches_email_case_insensitively(self):
+        _insert_user("Member@Example.com", FAMILY, token="old-token")
         with patch.object(ops_svr.eu, "send_verification_email", return_value=True) as verify, \
              patch.object(ops_svr.eu, "send_membership_instruction_email", return_value=True) as instruction:
-            response = self._post("new@example.com")
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(OPEN_CONFIRM.format(email="new@example.com"), response.get_data(as_text=True))
-        self.assertEqual(verify.call_count, 1)
+            response = self._post("  Member@Example.COM ")
+        alerts = _alerts(response.get_data(as_text=True))
+        self.assertEqual(alerts, [NEXT_STEP.format(email="member@example.com")])
+        self.assertEqual(verify.call_args.args[1], "member@example.com")
         instruction.assert_not_called()
-        created = _user("new@example.com")
-        self.assertIsNotNone(created)
-        self.assertEqual(created["is_active"], db_utils.Subscriber_State["pending"])
-        self.assertIsNone(created["family_id"])
+        row = _user("member@example.com")
+        self.assertEqual(row["email"], "member@example.com")
+        self.assertEqual(row["family_id"], FAMILY)
+        self.assertEqual(row["is_active"], db_utils.Subscriber_State["pending"])
+        self.assertEqual(_count_users(), 1)
+
+        _insert_user("Other@Example.com", "other-family")
+        found = _user("other@example.com")
+        self.assertEqual(found["email"], "Other@Example.com")
+        _insert_user("other@example.com", FAMILY)
+        preferred = _user("OTHER@example.com")
+        self.assertEqual(preferred["email"], "other@example.com")
+        self.assertTrue(db_utils.is_family_member("OTHER@example.com", FAMILY))
 
     def test_invalid_email_does_not_send_or_lookup_membership(self):
         ops_svr.app.config["FAMILY_ID"] = FAMILY
@@ -280,12 +320,13 @@ class FamilySubscribeSmokeTest(unittest.TestCase):
         ops_svr.app.config["FAMILY_ID"] = FAMILY
         with patch.object(ops_svr.eu, "send_verification_email", return_value=True) as verify, \
              patch.object(ops_svr.eu, "send_membership_instruction_email") as instruction:
-            response = self._post("stranger@example.com", action="unsubscribe")
+            response = self._post(" Stranger@Example.com ", action="unsubscribe")
         self.assertIn(
             "Please check stranger@example.com to confirm unsubscription.",
             response.get_data(as_text=True),
         )
         self.assertEqual(verify.call_count, 1)
+        self.assertEqual(verify.call_args.args[1], "stranger@example.com")
         self.assertFalse(verify.call_args.kwargs["is_subscribe"])
         instruction.assert_not_called()
         self.assertIsNone(_user("stranger@example.com"))
@@ -349,19 +390,113 @@ class FamilySubscribeSmokeTest(unittest.TestCase):
         self.assertEqual(other["is_active"], -1)
         self.assertEqual(other["token"], "other-token")
 
-    def test_open_gate_verify_still_activates_without_a_family_id(self):
-        _insert_user("legacy@example.com", None, token="legacy-token")
+    def test_verify_matches_case_and_missing_family_does_not_activate(self):
+        _insert_user("Member@Example.com", FAMILY, token="good-token")
         client = ops_svr.app.test_client()
-        response = client.get(
+        ok = client.get(
+            "/verify-email",
+            query_string={"email": " member@example.com ", "token": "good-token", "action": "subscribe"},
+            base_url=BASE,
+            follow_redirects=True,
+        )
+        self.assertIn("successfully subscribed", ok.get_data(as_text=True))
+        activated = _user("member@example.com")
+        self.assertEqual(activated["is_active"], db_utils.Subscriber_State["active"])
+        self.assertEqual(activated["email"], "member@example.com")
+
+        ops_svr.app.config["FAMILY_ID"] = None
+        _insert_user("legacy@example.com", None, token="legacy-token")
+        blocked_client = ops_svr.app.test_client()
+        with blocked_client.session_transaction() as sess:
+            sess["current_lang"] = "US"
+        blocked = blocked_client.get(
             "/verify-email",
             query_string={"email": "legacy@example.com", "token": "legacy-token", "action": "subscribe"},
             base_url=BASE,
             follow_redirects=True,
         )
-        self.assertIn("successfully subscribed", response.get_data(as_text=True))
+        self.assertIn("could not be completed", blocked.get_data(as_text=True))
+        legacy = _user("legacy@example.com")
+        self.assertNotEqual(legacy["is_active"], db_utils.Subscriber_State["active"])
+        self.assertEqual(legacy["token"], "legacy-token")
+
+    def test_feedback_is_member_only_and_hides_membership(self):
+        os.environ["DB_ADMIN"] = "admin@example.com"
+        _insert_user("Member@Example.com", FAMILY, is_active=0, token="pending-token")
+        _insert_user("other@example.com", "other-family", is_active=1, token="leave-me")
+        before = _count_users()
+
+        with patch.object(ops_svr.eu, "send_verification_email", return_value=True) as verify, \
+             patch.object(ops_svr.eu, "send_membership_instruction_email", return_value=True) as instruction, \
+             patch.object(ops_svr.eu, "send_email", return_value=True):
+            pending = self._post_feedback(" member@example.com ")
+            stranger = self._post_feedback("stranger@example.com")
+            other = self._post_feedback("Other@Example.com")
+
+        pending_alerts = _alerts(pending.get_data(as_text=True))
+        stranger_alerts = _alerts(stranger.get_data(as_text=True))
+        other_alerts = _alerts(other.get_data(as_text=True))
+        self.assertEqual(pending_alerts, [NEXT_STEP.format(email="member@example.com")])
         self.assertEqual(
-            _user("legacy@example.com")["is_active"],
-            db_utils.Subscriber_State["active"],
+            [item.replace("member@example.com", "ADDR") for item in pending_alerts],
+            [item.replace("stranger@example.com", "ADDR") for item in stranger_alerts],
+        )
+        self.assertEqual(
+            [item.replace("stranger@example.com", "ADDR") for item in stranger_alerts],
+            [item.replace("other@example.com", "ADDR") for item in other_alerts],
+        )
+        for alerts in (pending_alerts, stranger_alerts, other_alerts):
+            text = " ".join(alerts)
+            self.assertNotIn("Submitted successfully", text)
+            self.assertNotIn("not registered", text)
+            self.assertNotIn("尚未登記", text)
+        self.assertEqual(verify.call_count, 1)
+        self.assertEqual(verify.call_args.args[1], "member@example.com")
+        instructed = {call.args[1] for call in instruction.call_args_list}
+        self.assertEqual(instructed, {"stranger@example.com", "other@example.com"})
+        self.assertEqual(_count_users(), before)
+        self.assertIsNone(_user("stranger@example.com"))
+        other_row = _user("other@example.com")
+        self.assertEqual(other_row["token"], "leave-me")
+        self.assertEqual(other_row["family_id"], "other-family")
+        self.assertEqual(_count_articles(), 0)
+
+        _insert_user("writer@example.com", FAMILY, is_active=db_utils.Subscriber_State["active"])
+        with patch.object(ops_svr.eu, "send_verification_email") as verify_again, \
+             patch.object(ops_svr.eu, "send_membership_instruction_email") as instruction_again, \
+             patch.object(ops_svr.eu, "send_email", return_value=True):
+            accepted = self._post_feedback(" Writer@Example.com ")
+        accepted_body = accepted.get_data(as_text=True)
+        self.assertIn("Ticket:1", accepted_body)
+        self.assertIn("submitted for review", accepted_body)
+        verify_again.assert_not_called()
+        instruction_again.assert_not_called()
+        self.assertEqual(_count_articles(), 1)
+        self.assertEqual(_user("writer@example.com")["email"], "writer@example.com")
+
+    def _post_feedback(self, email, lang="US"):
+        client = ops_svr.app.test_client()
+        with client.session_transaction() as sess:
+            sess["current_lang"] = lang
+        page = client.get("/feedback", base_url=BASE)
+        html = page.get_data(as_text=True)
+        token = re.search(r'name="csrf_token"[^>]*value="([^"]+)"', html)
+        if token is None:
+            token = re.search(r'value="([^"]+)"[^>]*name="csrf_token"', html)
+        self.assertIsNotNone(token)
+        return client.post(
+            "/feedback",
+            data={
+                "title": "Family picnic notes",
+                "content": "A note long enough to pass the feedback form.",
+                "l10n": lang,
+                "author": "Ada",
+                "source": "Letter",
+                "email": email,
+                "csrf_token": token.group(1),
+            },
+            base_url=BASE,
+            follow_redirects=True,
         )
 
 
