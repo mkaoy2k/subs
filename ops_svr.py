@@ -1,21 +1,32 @@
 """
 FamilyTrees Operations Server
 
-This module provides backend services for the FamilyTrees website, including user activation,
-Frequently Asked Questions (FAQ), and About page with multi-language support.
+This module provides admin services for a specific family, 
+identified by the family's unique identifier, on the FamilyTrees Platform. 
+The services include:
+- Main page
+- Frequently Asked Questions (FAQ)
+- About page
+- Feedback page
 
 Main Features:
-- User account activation
-- Multi-language support (L10N)
-- FAQ page
-- About page
+- Publish periodical journal about family news, strories, and events
+- Solicitate family members to contribute to the journal
+- Support Family member subscription
+  - Allow users to subscribe and unsubscribe from family updates
+  - Applicant will be validated by email and must be a family member
+  - Only family members can subscribe
+  - To subscibe if not a family member yet, the user needs to contact 
+  the corresponding family Admin to register their email address and 
+  personal information in the family database first.
+- All the pages are supported with multi-language support (L10N)
 
 Production (default) — waitress, Flask debug off:
-    python ops_svr.py
+    python ops_svr.py --family_id <family_id>
 
 Development — Flask's built-in server, debugger, and reloader:
-    python ops_svr.py --dev
-    OPS_DEV=1 python ops_svr.py
+    python ops_svr.py --dev --family_id <family_id>
+    OPS_DEV=1 python ops_svr.py --family_id <family_id>
 
 The module-level Flask callable for an external WSGI server is `app`
 (for example `ops_svr:app`). Do not use `flask run` in production;
