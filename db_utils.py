@@ -132,6 +132,7 @@ def init_db():
             updated_at TEXT DEFAULT (datetime('now')),
             token TEXT,
             is_admin INTEGER DEFAULT 0,
+            family_id TEXT,
             password_hash TEXT,
             salt TEXT,
             reset_token TEXT,
@@ -195,6 +196,61 @@ def init_db():
                 raise
         
         conn.commit()
+    ensure_user_family_id_column()
+
+def ensure_user_family_id_column():
+    """
+    Add user.family_id on databases created before family-gated subscription.
+
+    New databases get the column from CREATE TABLE. CREATE TABLE IF NOT EXISTS
+    does not alter an existing user table, so this adds the column there.
+    NULL means the person is not registered to a family.
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({db_tables['user']})")
+        columns = [column[1] for column in cursor.fetchall()]
+        if "family_id" in columns:
+            return False
+        conn.execute(
+            f"ALTER TABLE {db_tables['user']} ADD COLUMN family_id TEXT"
+        )
+        conn.commit()
+        log.info("Added family_id column to user table")
+        return True
+
+
+def normalize_family_id(value):
+    """
+    Return a family id comparable as text, or None when it is blank.
+
+    Integers and strings match after stripping surrounding whitespace.
+    Comparison is otherwise exact, including case.
+    """
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def is_family_member(email, family_id) -> bool:
+    """
+    True when this email's user row is a member of family_id.
+
+    The member record is the `user` table row looked up by email
+    (`get_subscriber`). Membership is that row's family_id equaling
+    the server's family id. A missing row, a NULL family_id, and a
+    different family_id are all not members. Those cases are not
+    distinguished, so a caller cannot tell whether the address exists.
+    """
+    expected = normalize_family_id(family_id)
+    if not expected or not email or not isinstance(email, str):
+        return False
+    user = get_subscriber(email)
+    if not user:
+        return False
+    return normalize_family_id(user.get("family_id")) == expected
+
 
 def add_or_update_subscriber(user_data: Dict[str, Any], 
     update: bool = True

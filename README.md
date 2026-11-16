@@ -108,10 +108,20 @@ This repo has no systemd unit, Dockerfile, or cloud-host config. Sample pages li
 ### Production web server (default)
 
 ```bash
+uv run python ops_svr.py --family_id <family_id>
+```
+
+`<family_id>` is the family this process serves. Only a person whose `user.family_id` equals that value may subscribe. The same value can be set with `FAMILY_ID` in `.env`; `--family_id` overrides it.
+
+Leave both unset to keep the previous behavior (any syntactically valid email may subscribe):
+
+```bash
 uv run python ops_svr.py
 ```
 
 That process loads `ops_svr:app` and serves it with waitress. Flask debug and the reloader stay off, and Werkzeug's development-server warning stays silent.
+
+`waitress-serve ops_svr:app` and `gunicorn ops_svr:app` do not parse `--family_id`. Set `FAMILY_ID` in the environment for those processes.
 
 Equivalent, if you would rather invoke the WSGI server directly (expand the port yourself; this form does not read `OPS_SVR_PORT`):
 
@@ -143,14 +153,16 @@ uv run gunicorn --bind 127.0.0.1:5566 --workers 1 --threads 4 ops_svr:app
 Use this only when you want the debugger and auto-reloader. It **will** print Flask's development-server warning. That is expected.
 
 ```bash
-uv run python ops_svr.py --dev
+uv run python ops_svr.py --dev --family_id <family_id>
 ```
 
 or:
 
 ```bash
-OPS_DEV=1 uv run python ops_svr.py
+OPS_DEV=1 uv run python ops_svr.py --family_id <family_id>
 ```
+
+`--family_id` is optional here too. Omit it, and leave `FAMILY_ID` unset, for open subscription.
 
 `flask --app ops_svr run` is the development server as well. Production stays `uv run python ops_svr.py`.
 
@@ -158,6 +170,27 @@ OPS_DEV=1 uv run python ops_svr.py
 
 ```bash
 uv run streamlit run subs_ui.py
+```
+
+## Family membership
+
+Member records are rows in the `user` table (`DB_NAME`, default `data/users.db`). There is no separate members table in this app. Lookup is by email (`get_subscriber`). A person is a member of the family this server was started with when `user.family_id` equals that id. The comparison trims surrounding whitespace and then matches exactly, including case. `"12"` matches a value stored as the integer 12. Email lookup stays case-sensitive, which is how the existing query works.
+
+`user.family_id` is added on startup for databases created before this column existed. New rows leave it empty until an admin sets it. In the admin UI (User Management), the Family ID field writes that column. A family Admin registers the person's email and personal information there first.
+
+On `POST /subscribe` the address is checked with the existing email-format check.
+
+- A member receives the existing verification email. Confirming it activates the subscription. The update does not change `family_id`.
+- Anyone else receives one instruction email, in Traditional Chinese and English, telling them to contact the family Admin (`DB_ADMIN`) and register their email and personal information before subscribing. No user row is created, and an existing row for a different family is left unchanged.
+- Unsubscribe is unchanged: a verification email is sent, and membership is not required.
+
+The browser is shown the same “check your email” message for a member and for anyone else, in the language of the request (`SUB_CHECK_EMAIL` in `L10N_TW.json` and `L10N_US.json`). The letter itself is what differs. That is the privacy tradeoff: the mailbox owner learns whether this family has them registered, which the product requires, and the form response does not. Invalid email format is still rejected on the page, before any lookup. The two successful paths do different database work, so response time can still differ.
+
+Confirming a verification link also re-checks membership when a family id is configured. If the address is no longer a member, the link does not activate the subscription and does not clear the token.
+
+```bash
+uv run python tests/family_subscribe_smoke.py
+uv run python tests/request_locale_smoke.py
 ```
 
 ## ⚙️ Environment Variables
@@ -169,6 +202,7 @@ uv run streamlit run subs_ui.py
 - `OPS_SVR_PORT`: Operations server port (e.g., `5566`)
 - `OPS_SVR_THREADS`: waitress thread count (default `1`). Language is request-local; `4` is a reasonable setting once you want concurrent requests.
 - `OPS_DEV`: set to `1` to run Flask's development server instead of waitress
+- `FAMILY_ID`: family id this server accepts subscriptions for. `--family_id` overrides it. Unset (and no `--family_id`) keeps open subscription. See [Family membership](#family-membership).
 - `RELEASE`: Application release version (e.g., `2.0`)
 - `L10N_FILE`: Localization file (default: `L10N.json`)
 - `L10N`: Language code (e.g., `繁中`)
@@ -180,7 +214,7 @@ uv run streamlit run subs_ui.py
 - `DB_NAME`: Database file path (e.g., `data/users.db`)
 - `TBL_USR`: Users table name (e.g., `user`)
 - `TBL_ARTICLE`: Articles table name (e.g., `article`)
-- `DB_ADMIN`: Database admin email (e.g., `Your DB Admin Email`)
+- `DB_ADMIN`: Database admin email (e.g., `Your DB Admin Email`). This address is the family Admin named in the non-member instruction email.
 - `DB_ADMIN_PW`: Database admin password (e.g., `Your DB Admin Password`)
 
 ### Email Configuration

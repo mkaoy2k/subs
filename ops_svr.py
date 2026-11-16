@@ -28,6 +28,14 @@ Development — Flask's built-in server, debugger, and reloader:
     python ops_svr.py --dev --family_id <family_id>
     OPS_DEV=1 python ops_svr.py --family_id <family_id>
 
+`--family_id` overrides the FAMILY_ID environment variable. When both are
+omitted, any syntactically valid email may subscribe (the previous behavior),
+so `python ops_svr.py` and `waitress-serve ops_svr:app` keep working.
+`waitress-serve` does not parse arguments; set FAMILY_ID for that process.
+
+A member record is the `user` row for that email. Membership means the row's
+family_id equals the family id this process was started with.
+
 The module-level Flask callable for an external WSGI server is `app`
 (for example `ops_svr:app`). Do not use `flask run` in production;
 that command is Flask's development server.
@@ -776,23 +784,23 @@ def subscribe():
     
     try:
         if action == 'subscribe':
-            # Generate verification token
-            token = eu.generate_verification_token()
-            # Send verification email
-            if eu.send_verification_email(g_fmail, email, token, is_subscribe=True):
-                user_data = {
-                    'email': email,
-                    'is_active': dbm.Subscriber_State['pending'],
-                    'token': token,
-                    'l10n': g.loc_key
-                }
-                if dbm.add_or_update_subscriber(user_data):
-                    log.debug(f"Subscribed {email} with lang={g.loc_key}")
-                    flash(f'Please check {email} to confirm subscription.', 'info')
+            family_id = active_family_id()
+            # Unknown addresses and members of another family take the same
+            # branch and the same page message. Only the letter differs.
+            if family_id and not dbm.is_family_member(email, family_id):
+                log.info(
+                    "Subscription request is not a member of this family; "
+                    "sending registration instructions"
+                )
+                admin_email = os.getenv("DB_ADMIN", "")
+                if eu.send_membership_instruction_email(
+                    g_fmail, email, admin_email=admin_email
+                ):
+                    _flash_subscription_next_step(email)
                 else:
-                    flash(f'Failed to subscribe {email}. Please try again later.', 'danger')
+                    _flash_subscription_send_failed()
             else:
-                flash('Failed to send verification email. Please try again later.', 'danger')
+                _start_subscription(email, family_id)
         else:
             # For unsubscribing, we can send a verification email or unsubscribe directly
             # For security, we send a verification email here
@@ -831,6 +839,20 @@ def verify_email():
     
     # Handle subscription/unsubscription
     if action == 'subscribe':
+        family_id = active_family_id()
+        if family_id and not dbm.is_family_member(email, family_id):
+            # The link already proved they can read the mailbox. Do not
+            # activate, and do not clear the token, so an admin can register
+            # the address and the same link can be used again.
+            log.info("Verification refused because the address is not a member of this family")
+            flash(
+                g.loc.get(
+                    "SUB_VERIFY_BLOCKED",
+                    "This subscription could not be completed. Please contact the family Admin to register, then try again.",
+                ),
+                "danger",
+            )
+            return redirect(url_for('home'))
         user_data = {
             'email': email,
             'is_active': dbm.Subscriber_State['active'],
@@ -1040,6 +1062,110 @@ def _env_truthy(name):
     return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def active_family_id():
+    """The family id gating subscription, or None when subscription is open."""
+    family_id = app.config.get("FAMILY_ID")
+    if family_id is None:
+        return None
+    text = str(family_id).strip()
+    return text or None
+
+
+def configure_family_id(cli_value=None):
+    """
+    Choose the family this process serves.
+
+    A non-blank --family_id wins. Otherwise FAMILY_ID from the environment
+    (including .env) is used. When both are blank, FAMILY_ID is cleared and
+    subscription stays open to any valid email.
+    """
+    if cli_value is not None and str(cli_value).strip():
+        chosen = str(cli_value).strip()
+    else:
+        chosen = os.getenv("FAMILY_ID", "").strip() or None
+    app.config["FAMILY_ID"] = chosen
+    if chosen:
+        log.info(f"Family subscription gate enabled for family_id={chosen}")
+    else:
+        log.info(
+            "No family_id configured; subscription stays open to any valid email"
+        )
+    return chosen
+
+
+def build_parser():
+    """Command-line parser for `python ops_svr.py`."""
+    parser = argparse.ArgumentParser(description="FamilyTreesOps server")
+    parser.add_argument(
+        "--dev",
+        action="store_true",
+        help="Run Flask's development server with the debugger and reloader. Not for production.",
+    )
+    parser.add_argument(
+        "--family_id",
+        default=None,
+        help=(
+            "Only user rows whose family_id equals this value may subscribe. "
+            "Overrides FAMILY_ID. Omit both to allow any valid email."
+        ),
+    )
+    return parser
+
+
+def _flash_subscription_next_step(email):
+    """One message for members and non-members, so the page does not reveal which."""
+    template = g.loc.get(
+        "SUB_CHECK_EMAIL",
+        "Please check {email} for the next step.",
+    )
+    flash(template.replace("{email}", email), "info")
+
+
+def _flash_subscription_send_failed():
+    flash(
+        g.loc.get(
+            "SUB_EMAIL_SEND_FAILED",
+            "Failed to send email. Please try again later.",
+        ),
+        "danger",
+    )
+
+
+def _start_subscription(email, family_id):
+    """
+    Send the existing verification mail and store the pending token.
+
+    family_id is only used to pick the page message. The token update does
+    not change user.family_id.
+    """
+    token = eu.generate_verification_token()
+    if not eu.send_verification_email(g_fmail, email, token, is_subscribe=True):
+        if family_id:
+            _flash_subscription_send_failed()
+        else:
+            flash('Failed to send verification email. Please try again later.', 'danger')
+        return
+
+    user_data = {
+        'email': email,
+        'is_active': dbm.Subscriber_State['pending'],
+        'token': token,
+        'l10n': g.loc_key
+    }
+    if not dbm.add_or_update_subscriber(user_data):
+        if family_id:
+            _flash_subscription_send_failed()
+        else:
+            flash(f'Failed to subscribe {email}. Please try again later.', 'danger')
+        return
+
+    log.debug(f"Subscribed {email} with lang={g.loc_key}")
+    if family_id:
+        _flash_subscription_next_step(email)
+    else:
+        flash(f'Please check {email} to confirm subscription.', 'info')
+
+
 def server_settings():
     """
     Host, port, and waitress thread count.
@@ -1082,13 +1208,8 @@ def main(argv=None):
     and does not enable Flask's debugger. Pass --dev, or set OPS_DEV, to
     run Flask's development server instead.
     """
-    parser = argparse.ArgumentParser(description="FamilyTreesOps server")
-    parser.add_argument(
-        "--dev",
-        action="store_true",
-        help="Run Flask's development server with the debugger and reloader. Not for production.",
-    )
-    args = parser.parse_args(argv)
+    args = build_parser().parse_args(argv)
+    configure_family_id(args.family_id)
     dev = args.dev or _env_truthy("OPS_DEV")
     host, port, threads = server_settings()
 
@@ -1114,7 +1235,10 @@ def main(argv=None):
         raise
     serve(app, host=host, port=port, threads=threads)
 
-# Load shared catalogs. Request language is bound later, per request.
+# FAMILY_ID from the environment applies to waitress-serve ops_svr:app,
+# which does not go through main(). main() overrides this when --family_id
+# is passed. Request language is bound later, per request.
+configure_family_id(None)
 init_globals()
 
 if __name__ == "__main__":
