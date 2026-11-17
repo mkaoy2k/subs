@@ -235,7 +235,6 @@ uv run python tests/request_locale_smoke.py
 - `ARTICLE_WINDOW`: Article display window in days (default: `7`)
 - `LOGGING`: Logging level (e.g., `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) (default: `INFO`)
 
-
 ## 🤝 Contributing
 
 We welcome contributions to improve this project! Please follow these steps:
